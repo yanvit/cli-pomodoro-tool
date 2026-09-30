@@ -1,0 +1,26 @@
+{
+  "name": "cli-pomodoro-timer",
+  "version": "0.1.0",
+  "description": "A minimal CLI Pomodoro timer: fixed 25/5/15 work/break cycle, bell + printed alerts, no config, no persistence.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "pomodoro": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
+  }
+}
