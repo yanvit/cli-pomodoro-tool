@@ -1,47 +1,41 @@
 import { initialState, tick, type CycleState, type Phase } from "../core/cycle.js";
+import { renderFrame } from "./render.js";
 
-const PHASE_LABEL: Record<Phase, string> = {
-  work: "Work",
-  short_break: "Short break",
-  long_break: "Long break",
+const PHASE_COLOR: Record<Phase, string> = {
+  work: "\x1b[38;5;209m",
+  short_break: "\x1b[38;5;114m",
+  long_break: "\x1b[38;5;75m",
 };
 
+const RESET = "\x1b[0m";
+const CLEAR_AND_HOME = "\x1b[2J\x1b[H";
+const HIDE_CURSOR = "\x1b[?25l";
+const SHOW_CURSOR = "\x1b[?25h";
 const BELL = "\x07";
 
-function formatTime(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60)
-    .toString()
-    .padStart(2, "0");
-  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
-function printCountdown(state: CycleState): void {
-  process.stdout.write(`\r${PHASE_LABEL[state.phase]} — ${formatTime(state.secondsRemaining)} remaining `);
-}
-
-function announcePhase(state: CycleState): void {
-  process.stdout.write(`${BELL}${PHASE_LABEL[state.phase]} started — ${formatTime(state.secondsRemaining)}\n`);
+function draw(state: CycleState): void {
+  const frame = renderFrame(state, process.stdout.columns);
+  process.stdout.write(CLEAR_AND_HOME + PHASE_COLOR[state.phase] + frame.join("\n") + RESET + "\n");
 }
 
 export function startTimer(): void {
   let state: CycleState = initialState;
-  announcePhase(state);
+  process.stdout.write(HIDE_CURSOR);
+  draw(state);
+  process.stdout.write(BELL);
 
   const interval = setInterval(() => {
     const transition = tick(state);
     state = transition.state;
-
+    draw(state);
     if (transition.type === "phase-change") {
-      announcePhase(state);
-    } else {
-      printCountdown(state);
+      process.stdout.write(BELL);
     }
   }, 1000);
 
   process.on("SIGINT", () => {
     clearInterval(interval);
-    process.stdout.write("\n");
+    process.stdout.write(SHOW_CURSOR + "\n");
     process.exit(0);
   });
 }
