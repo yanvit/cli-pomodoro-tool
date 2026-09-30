@@ -1,0 +1,50 @@
+{
+  "slug": "_scaffold",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "Create the module structure + entry point",
+      "layer": "scaffold",
+      "deps": [],
+      "acs": [],
+      "dod": "project builds (empty): `npm install && npm run build` succeeds with src/cli.ts, src/core/, src/io/ present and package.json's `bin` pointing at the built entry point",
+      "files_hint": ["package.json", "tsconfig.json", "src/cli.ts", "src/core/", "src/io/"]
+    },
+    {
+      "id": "S2",
+      "title": "Wire the test harness + a smoke test",
+      "layer": "scaffold",
+      "deps": ["S1"],
+      "acs": [],
+      "dod": "empty/smoke test suite runs green via `npm test` (Vitest); a smoke test confirms `src/cli.ts` runs and exits 0 on `--help`",
+      "files_hint": ["vitest.config.ts", "src/cli.test.ts"]
+    },
+    {
+      "id": "S3",
+      "title": "Confirm no migration tooling is needed",
+      "layer": "scaffold",
+      "deps": ["S1"],
+      "acs": [],
+      "dod": "documented in CLAUDE.md (via S5) that there is no datastore and therefore no migration tool — no migrations/ directory is created",
+      "files_hint": []
+    },
+    {
+      "id": "S4",
+      "title": "Add the CI workflow (build + test + lint)",
+      "layer": "scaffold",
+      "deps": ["S2"],
+      "acs": [],
+      "dod": "CI config is valid; the workflow runs `npm run build`, `npm test`, `npm run lint` matching the commands recorded in docs/architecture-map.md frontmatter",
+      "files_hint": [".github/workflows/ci.yml"]
+    },
+    {
+      "id": "S5",
+      "title": "Write CLAUDE.md from the chosen conventions",
+      "layer": "scaffold",
+      "deps": ["S1"],
+      "acs": [],
+      "dod": "CLAUDE.md reflects docs/architecture-map.md: the cli/core/io split, no persistence, fixed 25/5/15 cycle, error/signal handling conventions",
+      "files_hint": ["CLAUDE.md"]
+    }
+  ]
+}
