@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { startTimer } from "./io/timer.js";
+
 const HELP_TEXT = `pomodoro — a CLI Pomodoro timer
 
 Usage:
@@ -23,7 +25,7 @@ export function run(argv: string[]): number {
     return 0;
   }
 
-  console.log("pomodoro timer not wired up yet");
+  startTimer();
   return 0;
 }
 
