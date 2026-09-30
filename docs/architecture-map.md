@@ -2,7 +2,7 @@
 status: current
 mode: greenfield-bootstrap
 updated_at: "2026-09-30"
-reflects_commit: "e39884a"
+reflects_commit: "2730b76"
 language: "typescript (node.js, node >=18 lts)"
 build_cmd: "npm run build"
 test_cmd: "npm test"
