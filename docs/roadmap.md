@@ -19,8 +19,8 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 
 | # | Step | Source | Size | Status |
 |---|---|---|:---:|---|
-| 1 | Scaffold the project skeleton | `docs/architecture-map.md` (mode: greenfield-bootstrap) | XS | idea |
-| 2 | Build the CLI Pomodoro timer | `docs/idea-brief.md §7 Recommendation` | S | idea |
+| 1 | Scaffold the project skeleton | `docs/architecture-map.md` (mode: greenfield-bootstrap) | XS | shipped |
+| 2 | Build the CLI Pomodoro timer | `docs/idea-brief.md §7 Recommendation` | S | shipped |
 
 ## Not yet specified
 
@@ -67,3 +67,5 @@ flowchart LR
 
 | Step | Shipped | Link |
 |---|---|---|
+| 1 · Scaffold skeleton | 2026-09-30 | `2730b76` |
+| 2 · Build the timer | 2026-09-30 | `9251e83` |
