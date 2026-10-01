@@ -8,19 +8,32 @@ const PHASE_COLOR: Record<Phase, string> = {
 };
 
 const RESET = "\x1b[0m";
-const CLEAR_AND_HOME = "\x1b[2J\x1b[H";
+const ENTER_ALT_SCREEN = "\x1b[?1049h";
+const EXIT_ALT_SCREEN = "\x1b[?1049l";
+const CURSOR_HOME = "\x1b[H";
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
+const CLEAR_TO_EOL = "\x1b[K";
 const BELL = "\x07";
 
 function draw(state: CycleState): void {
   const frame = renderFrame(state, process.stdout.columns);
-  process.stdout.write(CLEAR_AND_HOME + PHASE_COLOR[state.phase] + frame.join("\n") + RESET + "\n");
+  const lines = frame.map((line) => line + CLEAR_TO_EOL).join("\n");
+  process.stdout.write(CURSOR_HOME + PHASE_COLOR[state.phase] + lines + RESET);
 }
 
 export function startTimer(): void {
   let state: CycleState = initialState;
-  process.stdout.write(HIDE_CURSOR);
+  let cleanedUp = false;
+
+  function cleanup(): void {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    process.stdout.write(SHOW_CURSOR + EXIT_ALT_SCREEN);
+  }
+  process.on("exit", cleanup);
+
+  process.stdout.write(ENTER_ALT_SCREEN + HIDE_CURSOR);
   draw(state);
   process.stdout.write(BELL);
 
@@ -35,7 +48,6 @@ export function startTimer(): void {
 
   process.on("SIGINT", () => {
     clearInterval(interval);
-    process.stdout.write(SHOW_CURSOR + "\n");
     process.exit(0);
   });
 }
