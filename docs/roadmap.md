@@ -71,4 +71,4 @@ flowchart LR
 | 1 · Scaffold skeleton | 2026-09-30 | `2730b76` |
 | 2 · Build the timer | 2026-09-30 | `9251e83` |
 | 2 · Dashboard UI polish (big-digit countdown, anti-scroll fix, non-TTY/narrow-terminal degradation, warm color shift) | 2026-09-30 | `686e7f3`, `de897ef`, `85444bb`, `e80e9d5` |
-| 3 · Harden for distribution | 2026-10-01 | _pending commit_ |
+| 3 · Harden for distribution | 2026-10-01 | `f89a258` |
