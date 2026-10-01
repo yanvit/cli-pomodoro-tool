@@ -117,6 +117,56 @@ describe("startTimer pause/resume (compact mode)", () => {
   });
 });
 
+describe("startTimer pause/resume (dashboard mode)", () => {
+  let writeSpy: ReturnType<typeof vi.spyOn>;
+  let isTTYOriginal: boolean | undefined;
+  let columnsOriginal: number | undefined;
+  let setRawModeOriginal: unknown;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    isTTYOriginal = process.stdout.isTTY;
+    columnsOriginal = process.stdout.columns;
+    process.stdout.isTTY = true;
+    process.stdout.columns = 120; // wide -> dashboard mode, not compact
+    writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    // process.stdin.setRawMode is undefined outside a real TTY; stub it so
+    // keypress.ts's capability check succeeds and wires a real listener.
+    setRawModeOriginal = (process.stdin as unknown as { setRawMode?: unknown }).setRawMode;
+    (process.stdin as unknown as { setRawMode: (mode: boolean) => void }).setRawMode = vi.fn();
+  });
+
+  afterEach(() => {
+    writeSpy.mockRestore();
+    process.stdout.isTTY = isTTYOriginal;
+    process.stdout.columns = columnsOriginal;
+    (process.stdin as unknown as { setRawMode: unknown }).setRawMode = setRawModeOriginal;
+    process.stdin.removeAllListeners("keypress");
+    vi.useRealTimers();
+  });
+
+  function pressSpace(): void {
+    process.stdin.emit("keypress", " ", { name: "space" });
+  }
+
+  function written(): string {
+    return writeSpy.mock.calls.map((call) => String(call[0])).join("\n");
+  }
+
+  it("AC-08: PAUSED indicator is visible in dashboard mode when paused, and absent once resumed", () => {
+    startTimer();
+    vi.advanceTimersByTime(1000); // 25:00 -> 24:59
+    writeSpy.mockClear();
+
+    pressSpace(); // pause
+    expect(written()).toContain("PAUSED");
+
+    writeSpy.mockClear();
+    pressSpace(); // resume
+    expect(written()).not.toContain("PAUSED");
+  });
+});
+
 describe("startTimer exit-path handling", () => {
   let writeSpy: ReturnType<typeof vi.spyOn>;
   let exitSpy: ReturnType<typeof vi.spyOn>;
