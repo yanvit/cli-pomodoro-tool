@@ -2,10 +2,11 @@
 
 A single-purpose CLI Pomodoro timer. Running `pomodoro` walks the classic 25 min work / 5 min
 short break / 15 min long break (every 4th round) cycle, alerting with a terminal bell + printed
-message at each transition, and exits immediately and cleanly on Ctrl+C.
+message at each transition, and exits immediately and cleanly on Ctrl+C. Pressing spacebar
+pauses/resumes the countdown (dashboard and compact modes only).
 
 No history, no task binding, no configurable durations, no background/daemon mode, no OS
-notifications, no pause/resume. This is deliberate — see `docs/idea-brief.md §5`.
+notifications. This is deliberate — see `docs/idea-brief.md §5`.
 
 ## Install
 
