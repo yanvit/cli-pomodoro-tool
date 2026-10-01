@@ -20,4 +20,5 @@ that carry real content. ## Glossary is mandatory; the other two are optional.
 
 <!-- One line per term: name · one-sentence canonical definition · one-sentence boundary
      (what it is NOT / the concept it gets confused with). Alphabetical once there are a few. -->
+- developer — the person running `pomodoro` in their own terminal: the owner primarily, plus other developers who informally try the tool shared via GitHub; exactly one developer per running process, acting on their own session. NOT a registered user/account — the tool has no auth, no accounts, no multi-user concept.
 - paused — a boolean state orthogonal to Phase (work / short_break / long_break) that suspends tick/countdown progression and defers phase transitions (and the bell) without changing which phase is current. NOT a 4th Phase value, and NOT the same as the process exiting — Ctrl+C still exits immediately while paused.
