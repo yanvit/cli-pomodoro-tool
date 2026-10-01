@@ -24,7 +24,7 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 | 3 | Harden for distribution: `io/timer.ts` smoke test, README, npm packaging metadata, D2 resolution | this conversation | XS | shipped |
 | 4 | [Pause/resume the countdown with spacebar](features/pause-resume/spec.md) | `docs/roadmap.md §Decisions so far` (grilled) | S | spec'd |
 | 5 | Override work/break durations via CLI flags — bare `pomodoro` unchanged | `docs/roadmap.md §Decisions so far` (grilled) | S | idea |
-| 6 | Opt-in session history — append-only JSONL at the platform's data dir | `docs/roadmap.md §Decisions so far` (grilled) | M | idea |
+| 6 | [Opt-in session history via an env-var toggle](features/session-history/spec.md) | `docs/roadmap.md §Decisions so far` (grilled) | S | spec'd |
 
 ## Not yet specified
 
