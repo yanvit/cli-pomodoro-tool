@@ -30,7 +30,7 @@ Grounding for this approach: competitive research confirms spacebar + indefinite
 
 ## 3. Non-goals
 
-- Re-arming pause/resume's keystroke capture after a shell-level suspend (Ctrl+Z / SIGTSTP) and foreground (`fg`) — accepted limitation; after a non-exiting suspend-and-resume cycle, spacebar may stop toggling pause until the process is restarted. Reason: fixing it needs additional signal-handling disproportionate to an S-sized feature; accepted as a known limitation per the owner's review, same posture as the D1 decision. (Distinct from §5 AC-06, which covers an *exit-causing* signal like a terminate — that is a correctness floor, not excluded here; what's excluded is re-enabling the capability to keep working after a non-exiting suspend/resume.)
+- Restoring the terminal's input mode *while actively suspended* (the window between Ctrl+Z and `fg` — the process has not exited, only paused at the OS level) and re-arming pause/resume's keystroke capture afterward — accepted limitation; the terminal may stay in its special input mode for that window, and spacebar may stop toggling pause once foregrounded, until the process is restarted. Reason: fixing it needs additional signal-handling disproportionate to an S-sized feature; accepted as a known limitation per the owner's review, same posture as the D1 decision. (Distinct from §5 AC-06, which covers the process actually *exiting* via a terminate or similar — that is a correctness floor, not excluded here; US-06's "after the timer exits" never claimed to cover a mid-session suspend, only termination.)
 - Repainting a stale frame after a terminal resize that happens while paused — accepted limitation; the tool has no terminal-resize handling today and this feature doesn't add one. Reason: fixing resize handling tool-wide is a separate, pre-existing concern, not something pause/resume introduces.
 - Guarding against an accidental pause triggered by a stray keystroke or a pasted block of text containing a space — accepted; any single-key toggle has this tradeoff. Reason: self-correcting (pressing space again un-pauses), and adding confirmation UX would contradict the tool's zero-friction philosophy.
 - Auto-resuming a paused session after a timeout — explicitly not built. Reason: indefinite pause is a deliberate choice, consistent with this tool's "track time, don't enforce it" posture already established by the D1 decision (`docs/roadmap.md` §Decisions so far).
@@ -91,30 +91,31 @@ Grounding for this approach: competitive research confirms spacebar + indefinite
 
 **Given** a developer has a paused session showing "PAUSED" with some remaining time
 **When** the developer presses spacebar again
-**Then** the countdown resumes counting down from exactly the remaining time it was paused at, and the "PAUSED" indicator clears
+**Then** the countdown resumes counting down from exactly the remaining time it was paused at — preserved exactly, never rounded up — so no number of pause/resume cycles can ever grow a phase beyond its nominal duration, and the "PAUSED" indicator clears
 
 ### AC-03 (US-07) — error (environment lacks the capability)
 
-**Given** a developer invokes `pomodoro` with stdin that is not a terminal (e.g. redirected from a file or another command)
+**Given** a developer invokes `pomodoro` in an environment that cannot support keystroke capture — including, but not limited to, stdin not being a terminal, or any other failure to enable it
 **When** the process starts
-**Then** the countdown starts normally — the render mode (dashboard/compact/plain) is chosen exactly as it already is today, unaffected by stdin — and pause/resume simply isn't available, without crashing or exiting early
+**Then** the countdown starts normally — the render mode (dashboard/compact/plain) is chosen exactly as it already is today, unaffected by this — and pause/resume simply isn't available; any such failure degrades gracefully to this same no-pause path rather than crashing or exiting early. This is also always the case whenever the render mode itself is plain, even if stdin happens to be a terminal — pause/resume is scoped to dashboard and compact mode only, per §1.
 
 ### AC-04 (US-06) — authorization (who/what may trigger pause)
 
 **Given** a developer is running `pomodoro` interactively in their own terminal
-**When** anything other than a keystroke read from that process's own stdin occurs (e.g. another process, an unrelated terminal, or a signal that is not a keypress)
-**Then** the pause/resume state is not affected — only a keystroke from this process's own stdin can toggle it
+**When** anything other than a keystroke read from that process's own stdin occurs (e.g. another process, an unrelated terminal, or a signal that is not a keypress) — or the developer types something other than spacebar
+**Then** the pause/resume state is not affected — only the spacebar, read from this process's own stdin, can toggle it — and no keystroke, pause-triggering or not, is ever echoed to the screen; the display stays exactly as it was until the next scheduled redraw
 
 ### AC-05 (US-03, US-04) — domain invariant
 
 **Given** a developer's session is paused, at any point in the countdown including the instant a phase would otherwise have ended
 **When** any amount of real time elapses while paused
-**Then** no phase transition occurs and no bell sounds — "no phase transition while paused" holds regardless of timing, and the display continues showing "PAUSED" against the phase and remaining time captured at the moment of pausing
+**Then** no phase transition occurs and no bell sounds for as long as the session stays paused — "no phase transition while paused" holds regardless of timing, and the display continues showing "PAUSED" against the phase and remaining time captured at the moment of pausing. If the remaining time had reached zero while paused, the deferred transition (and its bell) fires immediately at the moment of resume, before the next countdown begins — paused time is frozen, never banked as extra time in the phase that was ending.
 
 ### AC-06 (US-06) — cross-context (internal pause state vs. the OS process-lifecycle context)
 
 **Given** a developer's `pomodoro` process is running, paused or not, with the terminal in its special input-reading mode
-**When** the process exits by any path — a normal Ctrl+C keypress, or an external signal such as a terminate or a closed terminal — the owning shell's terminal input mode is always restored to what it was before `pomodoro` started
+**When** the process exits by any path it can actually detect and react to — a normal Ctrl+C keypress, a terminate signal, a closed terminal/hung-up session, normal completion, or an unhandled internal error
+**Then** the owning shell's terminal input mode is always restored to what it was before `pomodoro` started. (Out of reach by construction, not by choice: a path no process can intercept — an unconditional kill signal, or the whole process group being torn down at once — cannot run any cleanup code, in this tool or any other; §6/§7's "100% of exit paths" is scoped to the detectable paths listed above.)
 
 ### AC-07 (US-05) — happy path (existing guarantee preserved)
 
@@ -125,16 +126,16 @@ Grounding for this approach: competitive research confirms spacebar + indefinite
 ### AC-08 (US-04) — happy path
 
 **Given** a developer's session is paused
-**When** the display next redraws
+**When** the display repaints on the keypress that paused it
 **Then** the "PAUSED" indicator is visible in both the dashboard and the compact render modes (not only one of them)
 
 ## 6. Non-functional requirements
 
 | Aspect | Target | Measurement |
 |---|---|---|
-| Pause/resume visual responsiveness | ≤ 1 render cycle (the tool's existing 1s tick interval) between keypress and the display reflecting the new state | manual verification + io smoke test |
-| Paused-time accuracy | Time spent paused is never counted against the remaining phase duration — deterministic to the second | unit test in `io` with a fake timer (pausing withholds the tick entirely, so the existing `core` state machine needs no change — this feature stays inside `src/io/`, matching its declared roadmap zone) |
-| Terminal-restoration reliability | 100% of exit paths (Ctrl+C keypress, external signal, normal completion) leave the terminal's input mode exactly as it was before `pomodoro` started | tests covering each exit path from AC-06 |
+| Pause/resume visual responsiveness | The display repaints once, immediately, on the triggering keypress — not on a periodic interval while paused (consistent with §3's accepted resize-staleness limitation, which only holds if nothing repaints while paused) | a thin `io` smoke test asserting the PAUSED marker appears in the write triggered by the pause keypress, and clears in the write triggered by the resume keypress |
+| Paused-time accuracy | Time spent paused is never counted against the remaining phase duration — the remaining time is preserved exactly (not rounded), so no number of pause/resume cycles can grow a phase beyond its nominal duration | unit test in `io` with a fake timer (pausing withholds the tick entirely, so the existing `core` state machine needs no change — this feature stays inside `src/io/`, matching its declared roadmap zone) |
+| Terminal-restoration reliability | 100% of the exit paths AC-06 is accountable for (Ctrl+C keypress, terminate signal, hang-up, normal completion, unhandled error — not an unconditional kill signal, which no process can intercept) leave the terminal's input mode exactly as it was before `pomodoro` started | tests covering each exit path from AC-06 |
 | Dependency footprint | 0 new runtime dependencies added | `package.json` `dependencies` stays absent/empty |
 
 ## 6.1 Security / privacy
