@@ -1,0 +1,65 @@
+{
+  "slug": "pause-resume",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Build src/io/keypress.ts: capability-gated keystroke capture",
+      "layer": "app",
+      "deps": [],
+      "acs": ["AC-03", "AC-04"],
+      "dod": "Unit tests pass for the capability-detection fallback and both recognized keys (spacebar, Ctrl+C).",
+      "files_hint": ["src/io/keypress.ts", "src/io/keypress.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t1-keypress-module.md"
+    },
+    {
+      "id": "T2",
+      "title": "Wire pause/resume state into src/io/timer.ts (skip-tick + resume-flush)",
+      "layer": "app",
+      "deps": ["T1"],
+      "acs": ["AC-01", "AC-02", "AC-05"],
+      "dod": "Fake-timer unit tests confirm pause freezes state exactly and resume flushes a due transition immediately, with zero diff to core/cycle.ts.",
+      "files_hint": ["src/io/timer.ts", "src/io/timer.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t2-pause-resume-state.md"
+    },
+    {
+      "id": "T3",
+      "title": "Wire exit-path handling into src/io/timer.ts (keypress Ctrl+C + signals)",
+      "layer": "app",
+      "deps": ["T1"],
+      "acs": ["AC-06", "AC-07"],
+      "dod": "Unit tests confirm cleanup() runs exactly once across Ctrl+C-via-keypress, SIGTERM, SIGHUP, and normal completion.",
+      "files_hint": ["src/io/timer.ts", "src/io/timer.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t3-exit-path-handling.md"
+    },
+    {
+      "id": "T4",
+      "title": "Show PAUSED indicator in dashboard render mode",
+      "layer": "app",
+      "deps": ["T2"],
+      "acs": ["AC-08"],
+      "dod": "renderFrame() unit test confirms PAUSED appears when paused and is absent when not.",
+      "files_hint": ["src/io/render.ts", "src/io/render.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t4-paused-indicator-dashboard.md"
+    },
+    {
+      "id": "T5",
+      "title": "Show PAUSED indicator in compact render mode",
+      "layer": "app",
+      "deps": ["T2"],
+      "acs": ["AC-08"],
+      "dod": "renderCompactLine() unit test confirms PAUSED appears when paused and is absent when not.",
+      "files_hint": ["src/io/compactLine.ts", "src/io/compactLine.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t5-paused-indicator-compact.md"
+    },
+    {
+      "id": "T6",
+      "title": "Update CLAUDE.md and README.md to document pause/resume",
+      "layer": "docs",
+      "deps": ["T3", "T4", "T5"],
+      "acs": [],
+      "dod": "CLAUDE.md no longer lists \"no pause/resume\" and README documents the spacebar keybinding.",
+      "files_hint": ["CLAUDE.md", "README.md"],
+      "file": "docs/features/pause-resume/tasks/t6-docs-update.md"
+    }
+  ]
+}
