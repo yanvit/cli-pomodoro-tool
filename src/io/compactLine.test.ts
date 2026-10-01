@@ -45,4 +45,11 @@ describe("renderCompactLine", () => {
     expect(line.length).toBeLessThanOrEqual(24);
     expect(line.startsWith("PAUSED")).toBe(true);
   });
+
+  it("ship-verification (real-run finding): terminalWidth === 0 (a real pty can report this) must not blank out the PAUSED line", () => {
+    const line = renderCompactLine(initialState, 0, true);
+    expect(line.length).toBeGreaterThan(0);
+    expect(line).toContain("PAUSED");
+    expect(line).toContain("Work");
+  });
 });
