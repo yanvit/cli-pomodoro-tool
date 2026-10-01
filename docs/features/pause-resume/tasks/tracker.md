@@ -14,7 +14,7 @@
 | T7 | Fix-forward: move PAUSED indicator into render.ts/compactLine.ts (review 2026-10-01 #1/#2/#3) | app | Vitalii | S | — | done |
 | T8 | Fix-forward: real-time-aware resume-flush + interval re-arm (review 2026-10-01 #4/#7) | app | Vitalii | S | — | done |
 | T9 | Fix-forward: remove production removeAllListeners workaround (review 2026-10-01 #8) | app | Vitalii | S | — | done |
-| T10 | Fix-forward: AC-03/AC-06 exit-path + plain-mode test coverage (review 2026-10-01 #9) | app | Vitalii | S | T9 | todo |
+| T10 | Fix-forward: AC-03/AC-06 exit-path + plain-mode test coverage (review 2026-10-01 #9) | app | Vitalii | S | T9 | done |
 | T11 | Fix-forward: sync docs to as-shipped architecture (review 2026-10-01 #5/#6/#10/#11) | docs | Vitalii | S | T7, T8 | todo |
 
 **Total:** 11 tasks, ~1 person-week + review-driven fix-forward pass.

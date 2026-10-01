@@ -39,6 +39,20 @@ describe("startTimer smoke test", () => {
     writeSpy.mockClear();
     expect(() => vi.advanceTimersByTime(1000)).not.toThrow();
   });
+
+  it("review 2026-10-01 #9 / AC-03: plain mode never wires keystroke capture, so spacebar does nothing", () => {
+    startTimer();
+    writeSpy.mockClear();
+
+    // no keypress listener was ever attached, so emitting one is a no-op —
+    // unlike dashboard/compact mode, nothing should be written for it.
+    expect(() => process.stdin.emit("keypress", " ", { name: "space" })).not.toThrow();
+    expect(writeSpy).not.toHaveBeenCalled();
+
+    // the phase still transitions on schedule — nothing was frozen by the keypress.
+    expect(() => vi.advanceTimersByTime(1500 * 1000)).not.toThrow();
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining("Short break started"));
+  });
 });
 
 describe("startTimer pause/resume (compact mode)", () => {
@@ -326,5 +340,28 @@ describe("startTimer exit-path handling", () => {
     process.emit("SIGTERM");
 
     expect(setRawModeMock).toHaveBeenCalledWith(false);
+  });
+
+  it("review 2026-10-01 #9 / AC-06: an unhandled internal error still restores the terminal, via the generic 'exit' event cleanup() is registered on", () => {
+    startTimer();
+    writeSpy.mockClear();
+
+    // Node's own handling of an uncaught exception ends by calling
+    // process.exit() with a nonzero code, which (like every exit path) fires
+    // the 'exit' event — this simulates that without actually throwing
+    // out of the test.
+    process.emit("exit", 1 as never);
+
+    expect(cleanupWriteCount()).toBe(1);
+  });
+
+  it("review 2026-10-01 #9 / AC-07: the native SIGINT handler (not via keypress) also exits cleanly and runs cleanup() exactly once", () => {
+    startTimer();
+    writeSpy.mockClear();
+
+    process.emit("SIGINT");
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(cleanupWriteCount()).toBe(1);
   });
 });
