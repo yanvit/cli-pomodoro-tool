@@ -1,13 +1,8 @@
-import { initialState, tick, type CycleState, type Phase } from "../core/cycle.js";
+import { initialState, tick, type CycleState } from "../core/cycle.js";
 import { renderCompactLine } from "./compactLine.js";
+import { phaseColorAnsi } from "./phaseColor.js";
 import { formatTime, PHASE_LABEL, renderFrame } from "./render.js";
 import { pickRenderMode, type RenderMode } from "./renderMode.js";
-
-const PHASE_COLOR: Record<Phase, string> = {
-  work: "\x1b[38;5;209m",
-  short_break: "\x1b[38;5;114m",
-  long_break: "\x1b[38;5;75m",
-};
 
 const RESET = "\x1b[0m";
 const ENTER_ALT_SCREEN = "\x1b[?1049h";
@@ -21,12 +16,12 @@ const BELL = "\x07";
 function drawDashboard(state: CycleState): void {
   const frame = renderFrame(state, process.stdout.columns);
   const lines = frame.map((line) => line + CLEAR_TO_EOL).join("\n");
-  process.stdout.write(CURSOR_HOME + PHASE_COLOR[state.phase] + lines + RESET);
+  process.stdout.write(CURSOR_HOME + phaseColorAnsi(state) + lines + RESET);
 }
 
 function drawCompact(state: CycleState): void {
   const line = renderCompactLine(state, process.stdout.columns);
-  process.stdout.write("\r" + PHASE_COLOR[state.phase] + line + RESET + CLEAR_TO_EOL);
+  process.stdout.write("\r" + phaseColorAnsi(state) + line + RESET + CLEAR_TO_EOL);
 }
 
 function logPlainPhaseStart(state: CycleState): void {
