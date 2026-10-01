@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { startTimer } from "./io/timer.js";
 
 const HELP_TEXT = `pomodoro — a CLI Pomodoro timer
@@ -29,7 +31,7 @@ export function run(argv: string[]): number {
   return 0;
 }
 
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+const isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 if (isMain) {
   process.exitCode = run(process.argv.slice(2));
 }

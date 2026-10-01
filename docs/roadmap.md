@@ -1,6 +1,6 @@
 ---
 status: living
-updated_at: "2026-09-30"
+updated_at: "2026-10-01"
 ---
 
 # Roadmap — cli-pomodoro-timer
@@ -21,6 +21,7 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 |---|---|---|:---:|---|
 | 1 | Scaffold the project skeleton | `docs/architecture-map.md` (mode: greenfield-bootstrap) | XS | shipped |
 | 2 | Build the CLI Pomodoro timer | `docs/idea-brief.md §7 Recommendation` | S | shipped |
+| 3 | Harden for distribution: `io/timer.ts` smoke test, README, npm packaging metadata, D2 resolution | this conversation | XS | shipped |
 
 ## Not yet specified
 
@@ -41,13 +42,13 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 | # | Question | Type | Owner | Blocks |
 |---|---|:---:|:---:|:---:|
 | D1 | Should a later version add OS Do-Not-Disturb toggling during work sessions to actually enforce focus, not just track time? (`docs/idea-brief.md §8`) | grilling | human | none |
-| D2 | Does the fixed blocking/no-config design (ANSI bell) hold up on Windows terminals, or does it need a fallback? (`docs/idea-brief.md §8`) | research | agent | none |
 
 ## Decisions so far
 
 - Node.js/TypeScript, no framework or datastore → [`docs/adr/0001-use-nodejs-typescript-with-no-framework-or-datastore.md`](adr/0001-use-nodejs-typescript-with-no-framework-or-datastore.md)
 - Thin `cli / core / io` module split → [`docs/adr/0002-thin-cli-core-io-module-split.md`](adr/0002-thin-cli-core-io-module-split.md)
 - Minimal single-command timer: fixed 25/5/15 cycle, bell+text alert, no persistence → [`docs/idea-brief.md §7`](idea-brief.md)
+- **D2 resolved:** the bell (`\x07`) is a raw control character, not an ANSI sequence — it works on every Windows terminal host including legacy `cmd.exe`, so no fallback is needed there. The actual portability risk is the dashboard's ANSI color/cursor-control escapes garbling on legacy conhost without VT processing enabled; resolved by documenting it in `README.md` rather than adding platform-detection code, consistent with this project's minimalism (the user base is Mac/Linux-primary per `idea-brief.md §3`).
 
 ## Dependency graph
 
@@ -69,3 +70,5 @@ flowchart LR
 |---|---|---|
 | 1 · Scaffold skeleton | 2026-09-30 | `2730b76` |
 | 2 · Build the timer | 2026-09-30 | `9251e83` |
+| 2 · Dashboard UI polish (big-digit countdown, anti-scroll fix, non-TTY/narrow-terminal degradation, warm color shift) | 2026-09-30 | `686e7f3`, `de897ef`, `85444bb`, `e80e9d5` |
+| 3 · Harden for distribution | 2026-10-01 | _pending commit_ |

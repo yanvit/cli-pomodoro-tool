@@ -4,6 +4,12 @@
   "description": "A minimal CLI Pomodoro timer: fixed 25/5/15 work/break cycle, bell + printed alerts, no config, no persistence.",
   "private": true,
   "type": "module",
+  "license": "MIT",
+  "author": "Vitalii",
+  "keywords": ["pomodoro", "cli", "timer", "productivity"],
+  "files": [
+    "dist"
+  ],
   "bin": {
     "pomodoro": "dist/cli.js"
   },
