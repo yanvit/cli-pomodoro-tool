@@ -163,6 +163,83 @@ sequenceDiagram
     Note over io: Same cleanup() path also runs on SIGTERM/SIGHUP/normal completion/unhandled error (AC-06) — a signal-killed process (not Ctrl+C) still restores the terminal before exiting.
 ```
 
+**Critical flow 3: Only the spacebar is ever honored**
+
+```mermaid
+sequenceDiagram
+    actor Developer
+    participant io
+    Developer->>io: presses a key that is not spacebar, or pastes text
+    io->>io: keystroke read, not spacebar — ignored
+    io->>Developer: no echo, no state change, display stays exactly as it was
+    Note over io: The same ignoring applies to anything not read from this process's own stdin — another process, an unrelated terminal, a signal that is not a keypress. Only the spacebar, from this process's own stdin, ever toggles pause (AC-04).
+```
+
+**Critical flow 4: Terminal restored across every detectable exit path**
+
+```mermaid
+sequenceDiagram
+    actor Developer
+    participant io
+    alt Ctrl+C keypress
+        Developer->>io: presses Ctrl+C
+    else terminate signal
+        io->>io: receives a terminate signal
+    else hang-up — terminal closed
+        io->>io: receives a hang-up signal
+    else normal completion
+        io->>io: all rounds complete
+    else unhandled internal error
+        io->>io: an uncaught exception occurs
+    end
+    io->>io: run cleanup() — the same idempotent terminal-restoration path every time
+    io->>Developer: process exits, shell usable
+    Note over io: An unconditional kill signal or a whole-process-group teardown cannot run this cleanup — no process can intercept them. Out of reach by construction, not a gap (AC-06).
+```
+
+**Critical flow 5: Pause unavailable in a non-interactive or plain environment**
+
+```mermaid
+sequenceDiagram
+    actor Developer
+    participant io
+    Developer->>io: invokes pomodoro
+    io->>io: attempt to enable keystroke capture
+    alt stdin is not a terminal, or capture fails for any other reason
+        io->>io: skip keystroke capture entirely — no raw mode, no pause capability
+        io->>Developer: countdown starts normally, render mode chosen exactly as it already is today
+    else capture succeeds, but the chosen render mode is plain
+        io->>io: pause capability stays disabled regardless — scoped to dashboard and compact only
+        io->>Developer: countdown starts normally in plain mode
+    end
+    Note over io: Neither branch crashes or exits early — both degrade gracefully to the no-pause path (AC-03).
+```
+
+**Coverage check (step 7 — use-case + AC passes, no cap, nothing silently uncovered):**
+
+| §4 User story | Flow(s) |
+|---|---|
+| US-01 Pause an interrupted session | Flow 1 |
+| US-02 Resume a paused session | Flow 1 |
+| US-03 Stay silent while paused | Flow 1 |
+| US-04 See an unambiguous paused state | Flow 1 |
+| US-05 Exit cleanly even while paused | Flow 2 |
+| US-06 Keep my terminal usable no matter how the timer ends | Flow 2, Flow 3, Flow 4 |
+| US-07 Keep piped/non-interactive use working | Flow 5 |
+
+| §5 AC | Shown by |
+|---|---|
+| AC-01 happy (pause) | Flow 1 |
+| AC-02 happy (resume) | Flow 1 |
+| AC-03 error (capture unavailable) | Flow 5 |
+| AC-04 authorization (only spacebar, only this stdin) | Flow 3 |
+| AC-05 domain invariant (no transition while paused; immediate flush on resume) | Flow 1 |
+| AC-06 cross-context (terminal restored, every exit path) | Flow 4 |
+| AC-07 happy (Ctrl+C still works) | Flow 2 |
+| AC-08 happy (PAUSED indicator, both render modes) | Flow 1 (mode-specific rendering detail is a §5 building-block concern, not a separate runtime path) |
+
+No new participant was needed beyond `Developer` and `io` (already named in §5) — `core` appears only in Flow 1, where it's genuinely part of that flow's sequence.
+
 ## 7. Deployment view
 
 <!-- N/A: reuses the existing deployment unit — a locally-run CLI process on the developer's own machine, started via npm link/global install. No infra, no replicas, no new scaling concern introduced by this feature. -->
