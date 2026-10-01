@@ -16,8 +16,9 @@
 | T9 | Fix-forward: remove production removeAllListeners workaround (review 2026-10-01 #8) | app | Vitalii | S | — | done |
 | T10 | Fix-forward: AC-03/AC-06 exit-path + plain-mode test coverage (review 2026-10-01 #9) | app | Vitalii | S | T9 | done |
 | T11 | Fix-forward: sync docs to as-shipped architecture (review 2026-10-01 #5/#6/#10/#11) | docs | Vitalii | S | T7, T8 | done |
+| T12 | Fix-forward: re-review residuals — compact-line overflow for long labels, interval-growth regression, sad.md mechanism sync | app+docs | Vitalii | S | T7, T8 | done |
 
-**Total:** 11 tasks, ~1 person-week + review-driven fix-forward pass.
+**Total:** 12 tasks, ~1 person-week + review-driven fix-forward pass + a re-review correction pass.
 
 **Note on T4/T5:** at the time they were first marked `done`, the PAUSED indicator had actually
 been inlined into `src/io/timer.ts`'s draw wrappers rather than into `render.ts`/`compactLine.ts`

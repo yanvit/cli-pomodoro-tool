@@ -84,7 +84,7 @@ C4Context
 **Top strategic choices (the seeds for ADRs):**
 
 1. **Target surface: `cli` (existing, unchanged)** — this feature extends the project's one and only surface; it does not introduce a new container or process. Derived from spec §1 "for whom" (the `developer` role) + the project having exactly one deployable (`docs/architecture-map.md` module inventory). Blast-radius: 0-of-3 (not irreversible, not multi-module beyond the existing single surface, no legitimate alternative — the entire project *is* this CLI) → inline, no ADR.
-2. **Pause state is confined entirely to `io`** — `core/cycle.ts` stays a pure, untouched state machine; pausing means the `setInterval` callback in `io/timer.ts` conditionally skips calling `core.tick()`. Resuming calls `core.tick()` once immediately, synchronously, on the resume keypress itself — not waiting for the next 1s interval — which is what lets spec AC-05's "deferred transition fires immediately at the moment of resume" hold even when the phase was already due to end while paused; the interval is then re-armed for subsequent ticks. See **ADR-0001** for the full decision record (this was the one genuine blast-radius decision in this pass: a reasonable engineer could instead model `paused` inside `CycleState`, and getting it wrong would falsify the roadmap's zone claim — see ADR-0001 for why `CONTEXT.md` doesn't itself settle this).
+2. **Pause state is confined entirely to `io`** — `core/cycle.ts` stays a pure, untouched state machine; pausing clears `io/timer.ts`'s pending scheduled tick (a self-rescheduling `setTimeout`, not a bare `setInterval`) and banks the real time already spent in the current second so it isn't lost. Resuming schedules only the *remaining* part of that interrupted second — never a fresh full second — so no number of pause/resume cycles can stretch or shrink a phase's nominal duration (spec AC-02). The one exception: if the phase was already due (`secondsRemaining <= 1`) **and** a full second of real time actually elapsed while paused, resuming calls `core.tick()` once immediately, synchronously, on the resume keypress itself, which is what lets spec AC-05's "deferred transition fires immediately at the moment of resume" hold. See **ADR-0001** for the full decision record (this was the one genuine blast-radius decision in this pass: a reasonable engineer could instead model `paused` inside `CycleState`, and getting it wrong would falsify the roadmap's zone claim — see ADR-0001 for why `CONTEXT.md` doesn't itself settle this).
 3. **Keystroke capture via a new, focused `io/keypress.ts` module** — follows the existing pattern of small single-purpose helpers already in `src/io/` (`render.ts`, `renderMode.ts`, `compactLine.ts`, `phaseColor.ts`) rather than growing `timer.ts` (already the project's largest file) further. Blast-radius: 1-of-3 (a legitimate alternative — inline in `timer.ts` — exists, but it's neither irreversible nor multi-module) → inline, decided with the owner, no ADR.
 4. **Signal handling is an explicit, enumerated set, not "catch everything"** — `SIGINT` (keypress-detected, since raw mode disables the OS's native SIGINT delivery), `SIGTERM`, `SIGHUP`, normal completion, and unhandled-error paths are covered; `SIGKILL` and process-group teardown are explicitly out of reach by construction (spec AC-06) — no process can intercept them, so there is no legitimate alternative to exclude them. Blast-radius: 0-of-3 → inline (see §8, §11).
 
@@ -140,14 +140,13 @@ sequenceDiagram
     participant io
     participant core
     Developer->>io: presses spacebar
-    io->>io: set paused = true, skip next tick() calls
+    io->>io: set paused = true, clear the pending scheduled tick, bank the real time already spent this second
     io->>Developer: repaint — PAUSED indicator shown (same keypress turn)
     Note over io,core: core.tick() is not called while paused — core state is frozen exactly
     Developer->>io: presses spacebar again
-    io->>core: tick() called once immediately, synchronously, on this keypress
-    core-->>io: a due transition fires right here if the phase had already ended while paused (AC-05) — otherwise an ordinary tick
+    io->>io: schedule the next tick after only the REMAINING part of the interrupted second (never a fresh full second — AC-02)
+    io->>core: if the phase was already due AND a full second actually elapsed while paused, tick() is called once immediately instead (AC-05) — otherwise the scheduled tick above fires normally
     io->>Developer: repaint — reflects any flushed transition/bell, PAUSED indicator cleared
-    io->>io: re-arm the 1s interval for subsequent ticks
 ```
 
 **Critical flow 2: Terminal always restored, whatever ends the process**

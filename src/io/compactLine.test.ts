@@ -38,4 +38,11 @@ describe("renderCompactLine", () => {
     const defaulted = renderCompactLine(initialState, 40);
     expect(defaulted).not.toContain("PAUSED");
   });
+
+  it("re-review 2026-10-01 (residual #2): the PAUSED-prefixed line never exceeds terminalWidth, even with a long phase label on a narrow terminal", () => {
+    const shortBreak: CycleState = { phase: "short_break", round: 1, secondsRemaining: 300 };
+    const line = renderCompactLine(shortBreak, 24, true);
+    expect(line.length).toBeLessThanOrEqual(24);
+    expect(line.startsWith("PAUSED")).toBe(true);
+  });
 });

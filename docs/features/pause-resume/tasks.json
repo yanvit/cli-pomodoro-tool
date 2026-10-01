@@ -110,6 +110,16 @@
       "dod": "sad.md §5/§8, tasks.json T4/T5, and tracker.md accurately describe the PAUSED indicator living in render.ts/compactLine.ts; spec.md §8's open question is checked off with the owner's accepted-default resolution; src/cli.ts --help mentions the spacebar keybinding.",
       "files_hint": ["docs/features/pause-resume/sad.md", "docs/features/pause-resume/spec.md", "docs/features/pause-resume/tasks/tracker.md", "src/cli.ts"],
       "file": "docs/features/pause-resume/tasks/t11-docs-sync.md"
+    },
+    {
+      "id": "T12",
+      "title": "Fix-forward (re-review 2026-10-01, residuals): compact-line overflow for long labels, interval-growth regression, sad.md mechanism sync",
+      "layer": "app",
+      "deps": ["T7", "T8"],
+      "acs": ["AC-01", "AC-02", "AC-08"],
+      "dod": "renderCompactLine() never exceeds terminalWidth when paused, even with a long phase label on a narrow terminal (drops the bar rather than wrapping). Pause/resume accumulates only real, unpaused time toward the next tick via an explicit per-quantum accumulator, so repeated pause/resume cycles can never stretch a phase past its nominal duration — verified across multiple pause/resume cycles in one quantum. sad.md §4/§6 describe the accumulator + remaining-time scheduling mechanism, not the superseded setInterval-skip description.",
+      "files_hint": ["src/io/compactLine.ts", "src/io/compactLine.test.ts", "src/io/timer.ts", "src/io/timer.test.ts", "docs/features/pause-resume/sad.md"],
+      "file": "docs/features/pause-resume/tasks/t12-rereview-residuals.md"
     }
   ]
 }

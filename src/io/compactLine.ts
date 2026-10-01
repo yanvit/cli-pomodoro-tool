@@ -12,6 +12,14 @@ export function renderCompactLine(
   const prefix = `${paused ? "PAUSED " : ""}${PHASE_LABEL[state.phase]} ${formatTime(state.secondsRemaining)} `;
   const barWidth = Math.max(MIN_BAR_WIDTH, terminalWidth - prefix.length);
 
+  if (paused && prefix.length + barWidth > terminalWidth) {
+    // The PAUSED prefix plus the bar's floor (MIN_BAR_WIDTH) would overflow
+    // a narrow terminal — drop the bar rather than wrap the line onto the
+    // next row (AC-01/AC-08). Unpaused sizing is untouched: this is scoped
+    // to the prefix pause/resume adds, not the pre-existing bar algorithm.
+    return prefix.slice(0, terminalWidth);
+  }
+
   const total = PHASE_DURATIONS_SEC[state.phase];
   const elapsed = total - state.secondsRemaining;
   const filled = Math.round((elapsed / total) * barWidth);

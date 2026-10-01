@@ -163,21 +163,42 @@ describe("startTimer pause/resume (compact mode)", () => {
     expect(written()).toContain("\x07");
   });
 
-  it("review 2026-10-01 #7: resuming re-arms the interval, so the next tick lands a full second after resume rather than on the stale interval phase", () => {
+  it("review 2026-10-01 #7: resume only waits out the REMAINING part of the interrupted second, not a fresh full second", () => {
     startTimer();
-    vi.advanceTimersByTime(500); // interval hasn't fired yet (fires every 1000ms)
-    pressSpace(); // pause at 25:00 — no tick has occurred
+    vi.advanceTimersByTime(500); // 500ms already elapsed in the current quantum
+    pressSpace(); // pause at 25:00 — no tick has occurred yet
 
-    vi.advanceTimersByTime(2000); // real time passes while paused; old interval's schedule would have fired (and been skipped) twice by now
+    vi.advanceTimersByTime(2000); // real time passes while paused — must not count
     writeSpy.mockClear();
-    pressSpace(); // resume
+    pressSpace(); // resume — only 500ms remains before the next tick is due
 
     writeSpy.mockClear();
-    vi.advanceTimersByTime(999);
-    expect(written()).toBe(""); // less than a full second since resume — no tick yet
+    vi.advanceTimersByTime(499);
+    expect(written()).toBe(""); // not yet — only 999ms of active time has passed since the last tick
 
     vi.advanceTimersByTime(1);
-    expect(written()).toContain("24:59"); // exactly 1s after resume, the first tick fires
+    expect(written()).toContain("24:59"); // exactly 1000ms of ACTIVE time since start, tick fires
+  });
+
+  it("re-review 2026-10-01 (residual #1): across several pause/resume cycles, only active time accumulates toward the next tick — a phase can never be stretched beyond its nominal duration (AC-02)", () => {
+    startTimer();
+
+    vi.advanceTimersByTime(300); // 300ms active
+    pressSpace(); // pause
+    vi.advanceTimersByTime(5000); // long pause — must not count
+    pressSpace(); // resume — 300ms of the quantum spent, 700ms remains
+
+    vi.advanceTimersByTime(200); // 500ms active total now
+    pressSpace(); // pause again, mid-quantum
+    vi.advanceTimersByTime(3000); // another long pause — must not count
+    pressSpace(); // resume — 500ms spent, 500ms remains
+
+    writeSpy.mockClear();
+    vi.advanceTimersByTime(499);
+    expect(written()).toBe(""); // 999ms active total — not due yet
+
+    vi.advanceTimersByTime(1);
+    expect(written()).toContain("24:59"); // exactly 1000ms of active time, regardless of how many times or how long it paused
   });
 });
 
