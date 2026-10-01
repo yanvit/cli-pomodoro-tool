@@ -1,7 +1,7 @@
-import { PHASE_DURATIONS_SEC, type CycleState, type Phase } from "../core/cycle.js";
+import { initialState, PHASE_DURATIONS_SEC, type CycleState, type Phase } from "../core/cycle.js";
 import { renderBigText } from "./bigDigits.js";
 
-const PHASE_LABEL: Record<Phase, string> = {
+export const PHASE_LABEL: Record<Phase, string> = {
   work: "Work",
   short_break: "Short break",
   long_break: "Long break",
@@ -9,7 +9,7 @@ const PHASE_LABEL: Record<Phase, string> = {
 
 const PROGRESS_BAR_WIDTH = 24;
 
-function formatTime(totalSeconds: number): string {
+export function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
     .toString()
     .padStart(2, "0");
@@ -53,3 +53,5 @@ export function renderFrame(state: CycleState, terminalWidth?: number): string[]
   }
   return frame;
 }
+
+export const DASHBOARD_WIDTH = Math.max(...renderFrame(initialState).map((line) => line.length));
