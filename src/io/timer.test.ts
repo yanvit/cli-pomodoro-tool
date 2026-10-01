@@ -1,6 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startTimer } from "./timer.js";
 
+// startTimer() owns no listener-teardown of its own beyond its per-run
+// cleanup() (review 2026-10-01 #8: that used to be done in production code
+// via a blanket removeAllListeners, which could silently drop a host's own
+// handlers). Each describe block below calls startTimer() repeatedly in one
+// process, so each is responsible for removing exactly the listeners that
+// one startTimer() call could have registered, in its own afterEach.
+function clearProcessListeners(): void {
+  process.removeAllListeners("exit");
+  process.removeAllListeners("SIGINT");
+  process.removeAllListeners("SIGTERM");
+  process.removeAllListeners("SIGHUP");
+}
+
 describe("startTimer smoke test", () => {
   let writeSpy: ReturnType<typeof vi.spyOn>;
   let isTTYOriginal: boolean | undefined;
@@ -15,6 +28,7 @@ describe("startTimer smoke test", () => {
   afterEach(() => {
     writeSpy.mockRestore();
     process.stdout.isTTY = isTTYOriginal;
+    clearProcessListeners();
     vi.useRealTimers();
   });
 
@@ -52,6 +66,7 @@ describe("startTimer pause/resume (compact mode)", () => {
     process.stdout.columns = columnsOriginal;
     (process.stdin as unknown as { setRawMode: unknown }).setRawMode = setRawModeOriginal;
     process.stdin.removeAllListeners("keypress");
+    clearProcessListeners();
     vi.useRealTimers();
   });
 
@@ -177,6 +192,7 @@ describe("startTimer pause/resume (dashboard mode)", () => {
     process.stdout.columns = columnsOriginal;
     (process.stdin as unknown as { setRawMode: unknown }).setRawMode = setRawModeOriginal;
     process.stdin.removeAllListeners("keypress");
+    clearProcessListeners();
     vi.useRealTimers();
   });
 
@@ -256,10 +272,7 @@ describe("startTimer exit-path handling", () => {
     process.stdout.columns = columnsOriginal;
     (process.stdin as unknown as { setRawMode: unknown }).setRawMode = setRawModeOriginal;
     process.stdin.removeAllListeners("keypress");
-    process.removeAllListeners("exit");
-    process.removeAllListeners("SIGTERM");
-    process.removeAllListeners("SIGHUP");
-    process.removeAllListeners("SIGINT");
+    clearProcessListeners();
     vi.useRealTimers();
   });
 

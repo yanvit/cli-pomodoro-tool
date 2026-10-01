@@ -30,15 +30,6 @@ function logPlainPhaseStart(state: CycleState): void {
 }
 
 export function startTimer(): void {
-  // This function owns the process-level "exit"/signal handlers below
-  // exclusively. Clear any listeners a prior startTimer() call in this same
-  // process may have left behind (relevant in tests, which invoke
-  // startTimer() repeatedly in one process) so cleanup() never double-fires.
-  process.removeAllListeners("exit");
-  process.removeAllListeners("SIGINT");
-  process.removeAllListeners("SIGTERM");
-  process.removeAllListeners("SIGHUP");
-
   const mode: RenderMode = pickRenderMode(Boolean(process.stdout.isTTY), process.stdout.columns);
   let state: CycleState = initialState;
   let paused = false;
