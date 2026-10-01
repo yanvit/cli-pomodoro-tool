@@ -4,10 +4,10 @@ owner: "Vitalii"
 reviewers: ["Vitalii"]
 updated_at: "2026-10-01"
 feature_size: "S"
-target_surfaces: []  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
+target_surfaces: [cli]
 ---
 
-# Software Architecture Document — <slug>
+# Software Architecture Document — pause-resume
 
 <!-- 12 Arc42 sections. Empty section → <!-- N/A: <one-line reason> -->. -->
 <!-- C4 Context (L1) lives inline in §3. C4 Container (L2) lives inline in §5. -->
@@ -15,291 +15,210 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 1. Introduction and goals
 
-<!-- 🎯 Why: durable memory of «what + the three dominant qualities + who cares». A year from
-     now nobody recalls which three qualities were critical for this system.
-     📋 Write: 1 ¶ intent + 3 lines of top-3 quality goals + a stakeholders table.
-     ¶4 is the override slot — critic `Override` resolutions emit «Decision override: <headline>
-     — rationale: <reason>» bullets here so downstream skills see the deliberate choice. -->
-
-**Intent.** <One paragraph from spec §2 Goals — what we're building and for whom.>
+**Intent.** Add a spacebar-triggered pause/resume to `pomodoro`'s countdown so a developer interrupted mid-phase can freeze progress and resume exactly where they left off, without breaking the tool's existing Ctrl+C clean-exit guarantee (spec §2 Goals).
 
 **Top-3 quality goals (1-liners; full scenarios in §10):**
 
-1. <e.g. "Availability under partial failure of a downstream module">
-2. <e.g. "Read performance for the dashboard under data-scale growth">
-3. <e.g. "Recoverability with <30 min RTO">
+1. Terminal-restoration reliability — never leave a developer's shell in a broken input mode, on any exit path this process can intercept.
+2. Paused-time accuracy — the remaining phase time is preserved exactly across any number of pause/resume cycles.
+3. Pause/resume visual responsiveness — the "PAUSED" state is reflected immediately, on the triggering keypress.
 
 **Stakeholders.**
 
 | Role | Interest | Sign-off owner? |
 |---|---|---|
-| <author role from glossary> | <feature usage> | No |
-| <consumer role from glossary> | <read usage> | No |
+| developer (CONTEXT glossary) | the person running `pomodoro`, interrupted mid-phase | No |
 | Tech Lead | SAD approval | Yes |
 
-<!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
+<!-- Decision overrides (¶4) — none this pass. -->
 
 ## 2. Constraints
 
-<!-- 🎯 Why: §4 strategy only works when §2 has fixed WHAT IS ALREADY FIXED — stack, versions,
-     deadline, regulatory. This is an input, not an output.
-     📋 Write: four blocks — Technical / Organisational / Conventions / Regulatory.
-     📌 Pin versions («<datastore> 18», not «<datastore>»); «Q3 deadline — hard», not «ideally».
-     Never N/A — every feature inherits at least Conventions + Technical. -->
-
 **Technical.**
-- <Language + version>
-- <Framework(s) + version>
-- <Datastore(s) + version>
-- <Architecture convention — e.g. the layering style from the project convention file>
+- TypeScript on Node.js (>=18 LTS) — unchanged.
+- No framework, no datastore — unchanged (`docs/adr/0001-use-nodejs-typescript-with-no-framework-or-datastore.md`).
+- Zero new runtime dependencies — keystroke capture uses Node's built-in `node:readline` `emitKeypressEvents` + `process.stdin.setRawMode`, confirmed feasible via AFK research during `roadmap` (`docs/roadmap.md` §Decisions so far) — this was already settled upstream of this design pass, not a fresh choice here.
+- Module wiring: direct function calls, no DI container (`docs/adr/0002-thin-cli-core-io-module-split.md`).
+- Layering: `cli` (entry point, argv) → `core` (pure state machine) → `io` (real-time driver) — unchanged; this feature adds to `io` only (see ADR-0001).
 
 **Organisational.**
-- <Effort budget — e.g. 3 person-weeks>
-- <Deadline — e.g. 2026-Q3 hard>
-- <Team composition>
+- Effort budget: S (`docs/features/pause-resume/.size`) — ≤1 week.
+- No hard deadline — personal project (`docs/idea-brief.md` §4).
+- Team: solo (Vitalii).
 
 **Conventions.**
-- <Link to the project's convention file>
-- <Naming, ID strategy, error-handling pattern>
+- `CLAUDE.md` + `docs/architecture-map.md` — module boundaries, error-handling convention (uncaught → stderr + nonzero exit; SIGINT → immediate exit 0), test convention (`core` unit-tested with a fake clock, `io` gets a thin smoke test only).
+- New file-splitting pattern already in place in `src/io/` (`render.ts`, `renderMode.ts`, `compactLine.ts`, `phaseColor.ts` — each a small, focused helper) — this feature's keystroke-capture code follows the same pattern (`src/io/keypress.ts`), confirmed with the owner.
 
 **Regulatory / external.**
-- <e.g. data-retention / deletion behaviour per ADR-NNNN>
-- <e.g. applicable compliance controls, or N/A with a reason>
+- N/A — no personal data, no new permission boundary, no network surface (spec §6.1 Security review verdict: N/A).
 
 ## 3. Context and scope
 
-<!-- 🎯 Why: draws the SYSTEM BOUNDARY — who talks to it from outside, where the trust zone ends.
-     Without §3, §5 and §8 (authorization) blur — unclear what's «inside» vs «outside».
-     📋 Write: 2–3 sentences of business context + an external-systems table + a C4Context block.
-     📌 «External: none (deliberate, no third-party in v1)» is itself a decision worth stating.
-     Trust boundary — the line past which you don't trust data without checking it.
-     Never N/A — greenfield still draws the planned actors + external systems. -->
+`pomodoro` is a single-process CLI the developer runs directly in their own terminal. Pause-resume adds no new external interaction: still one developer, one terminal, one process — it only adds a second input channel (keystrokes) alongside the existing signal-based one (Ctrl+C).
 
-<Business context in 2–3 sentences. What the system does for whom.>
-
-<!-- brownfield: <one-line scan summary> (or «N/A — greenfield repo» if no source existed) -->
+<!-- brownfield: real scan (not the stale architecture-map.md) confirms `src/cli.ts` → `startTimer()` → `src/core/cycle.ts` (pure, zero I/O) + `src/io/timer.ts` (setInterval-driven, SIGINT handler, `process.on("exit", cleanup)`); zero runtime deps; zero persistence; `io` test convention is `vi.useFakeTimers()` + `vi.spyOn(process.stdout.write)` smoke tests. -->
 
 **External systems (in / out):**
 
 | Actor or system | Type | Interaction |
 |---|---|---|
-| <author role> | Person | <what they do> |
-| <external service> | System (internal/external) | <interaction> |
-| <identity provider> | System (external) | <provides auth tokens> |
+| developer | Person | runs `pomodoro`, presses spacebar to pause/resume, Ctrl+C to exit |
+| External: none | — | deliberate — no third-party service, no network call, unchanged from v1 |
 
-**C4 Context (L1):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. -->
+**C4 Context (L1):**
 
 ```mermaid
 C4Context
-    title <feature> — System Context
+    title pause-resume — System Context
 
-    Person(actor, "<Actor role>", "<intent>")
-    System(app, "<Our system>", "<one-sentence description>")
-    System_Ext(ext, "<External system>", "<one-sentence description>")
+    Person(developer, "Developer", "runs pomodoro in a terminal; pauses/resumes with spacebar")
 
-    Rel(actor, app, "<interaction>", "<protocol>")
-    Rel(app, ext, "<interaction>", "<protocol>")
+    System(app, "pomodoro CLI", "single-process Node.js CLI Pomodoro timer")
+
+    Rel(developer, app, "starts, pauses/resumes, exits", "terminal stdin/stdout")
 ```
 
 ## 4. Solution strategy
 
-<!-- 🎯 Why: the 3–4 STRATEGIC PILLARS every ADR grows from. Without §4 each ADR looks random —
-     there's no umbrella. ⭐ The densest section — the blast-radius gate fires almost always here
-     (decisions are irreversible + multi-module).
-     📋 Write: 3–4 choices; each a heading + 2–3 sentences of rationale.
-     📌 «Store content as a table of typed blocks» is a pillar — ADR-0001 grows from it. -->
-
 **Top strategic choices (the seeds for ADRs):**
 
-1. **<e.g. Module isolation through events>** — <2–3 sentences citing quality goals + constraints>.
-2. **<e.g. Single-store persistence>** — <2–3 sentences>.
-3. **<e.g. Server-rendered read side>** — <2–3 sentences>.
+1. **Target surface: `cli` (existing, unchanged)** — this feature extends the project's one and only surface; it does not introduce a new container or process. Derived from spec §1 "for whom" (the `developer` role) + the project having exactly one deployable (`docs/architecture-map.md` module inventory). Blast-radius: 0-of-3 (not irreversible, not multi-module beyond the existing single surface, no legitimate alternative — the entire project *is* this CLI) → inline, no ADR.
+2. **Pause state is confined entirely to `io`** — `core/cycle.ts` stays a pure, untouched state machine; pausing means the `setInterval` callback in `io/timer.ts` conditionally skips calling `core.tick()`. See **ADR-0001** for the full decision record (this was the one genuine blast-radius decision in this pass: a reasonable engineer could instead model `paused` inside `CycleState`, and getting it wrong would contradict `CONTEXT.md`'s glossary entry and the roadmap's zone claim).
+3. **Keystroke capture via a new, focused `io/keypress.ts` module** — follows the existing pattern of small single-purpose helpers already in `src/io/` (`render.ts`, `renderMode.ts`, `compactLine.ts`, `phaseColor.ts`) rather than growing `timer.ts` (already the project's largest file) further. Blast-radius: 1-of-3 (a legitimate alternative — inline in `timer.ts` — exists, but it's neither irreversible nor multi-module) → inline, decided with the owner, no ADR.
+4. **Signal handling is an explicit, enumerated set, not "catch everything"** — `SIGINT` (keypress-detected, since raw mode disables the OS's native SIGINT delivery), `SIGTERM`, `SIGHUP`, normal completion, and unhandled-error paths are covered; `SIGKILL` and process-group teardown are explicitly out of reach by construction (spec AC-06) — no process can intercept them, so there is no legitimate alternative to exclude them. Blast-radius: 0-of-3 → inline (see §8, §11).
 
-Each tactical decision in later sections should trace to one of these seeds. Tactical decisions that *contradict* a strategic choice are red flags — surface them in §11.
+Target surface written to frontmatter: `target_surfaces: [cli]`.
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
-
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
+Unchanged layering style: `cli` (entry, argv parsing) → `core` (pure domain, zero I/O) → `io` (real-time driver, timers, terminal control). This feature adds entirely within `io`, per ADR-0001.
 
 **Internal decomposition:**
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+src/
+├── cli.ts              <unchanged — entry point>
+├── core/
+│   └── cycle.ts         <unchanged — pure state machine, zero changes this feature (ADR-0001)>
+└── io/
+    ├── timer.ts          <modified — paused boolean, conditional tick(), signal handlers, calls into keypress.ts>
+    ├── keypress.ts        <new — wraps node:readline emitKeypressEvents + setRawMode; emits "toggle-pause" / "sigint" events; owns raw-mode enable/restore and the capability-detection fallback (spec AC-03)>
+    ├── render.ts           <modified — PAUSED indicator in the dashboard header line>
+    ├── compactLine.ts      <modified — PAUSED indicator prepended to the compact line>
+    └── phaseColor.ts       <unchanged — reused as-is for the PAUSED label's color, per the owner's confirmed default>
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title pause-resume — Containers
 
-    Person(actor, "<Actor>")
+    Person(developer, "Developer")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(app, "pomodoro CLI") {
+        Container(cli, "cli", "TypeScript (Node.js)", "parses argv, starts the run")
+        Container(core, "core", "TypeScript", "pure work/break state machine — unchanged by this feature")
+        Container(io, "io", "TypeScript (Node.js)", "real-time driver: countdown, render, bell, signals, keystroke capture")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
-
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(developer, cli, "invokes the command", "terminal")
+    Rel(developer, io, "pauses/resumes (spacebar), exits (Ctrl+C)", "stdin, raw mode")
+    Rel(cli, core, "starts a cycle")
+    Rel(io, core, "calls tick() — skipped while paused (ADR-0001)")
+    Rel(io, developer, "countdown, PAUSED indicator, bell", "stdout")
 ```
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
-
-**Critical flow 1: <flow name>**
+**Critical flow 1: Pause and resume mid-phase**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor Developer
+    participant io
+    participant core
+    Developer->>io: presses spacebar
+    io->>io: set paused = true, skip next tick() calls
+    io->>Developer: repaint — PAUSED indicator shown (same keypress turn)
+    Note over io,core: core.tick() is not called while paused — core state is frozen exactly
+    Developer->>io: presses spacebar again
+    io->>core: tick() resumes, remaining time unchanged
+    io->>Developer: repaint — PAUSED indicator cleared
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: Terminal always restored, whatever ends the process**
+
+```mermaid
+sequenceDiagram
+    actor Developer
+    participant io
+    Developer->>io: presses Ctrl+C (detected as a keypress, raw mode disables native SIGINT)
+    io->>io: run cleanup() — restore terminal input mode
+    io->>Developer: process exits immediately, shell usable
+
+    Note over io: Same cleanup() path also runs on SIGTERM/SIGHUP/normal completion/unhandled error (AC-06) — a signal-killed process (not Ctrl+C) still restores the terminal before exiting.
+```
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
-
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
-
-**Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
-
-**Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
-
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+<!-- N/A: reuses the existing deployment unit — a locally-run CLI process on the developer's own machine, started via npm link/global install. No infra, no replicas, no new scaling concern introduced by this feature. -->
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
-
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Input handling | Single consumer of stdin per process — only the spacebar toggles pause; every other keystroke is swallowed with no echo (spec AC-04) | `io/keypress.ts` |
+| Signal handling | Enumerated, not exhaustive: SIGINT (keypress-detected), SIGTERM, SIGHUP, normal completion, unhandled error all run the same `cleanup()`; SIGKILL/process-group teardown explicitly out of reach (spec AC-06) | `io/timer.ts`, §4 item 4 |
+| Terminal-state management | One idempotent `cleanup()` restores raw-mode/alt-screen/cursor state, invoked from every exit path above — extends the existing `cleanedUp` guard pattern already in `timer.ts` | `io/timer.ts` |
+| Rendering | Event-driven repaint on the pause/resume keypress, not a periodic repaint while paused (spec §6 NFR row 1) | `io/timer.ts`, `io/render.ts`, `io/compactLine.ts` |
+| Error handling | Unchanged repo convention — uncaught errors to stderr, nonzero exit | `CLAUDE.md` |
+| ID strategy | N/A — no persisted entities | — |
+| Internationalisation | N/A — single language, unchanged | — |
+| Observability | N/A — no telemetry, by design (`docs/idea-brief.md` §5) | — |
 
 ## 9. Architecture decisions
 
-<!-- 🎯 Why: the REVERSE INDEX onto the adr/ folder. `ls adr/` gives the files; §9 gives the
-     semantics — why they exist, which SAD section they attach to, what status.
-     📋 Write: a 4-column table, one row per ADR. Mixed status is fine.
-     📌 e.g. «0001 | Store content as a table of typed blocks | Accepted | §4». -->
-
 | # | Title | Status | Section |
 |---|---|---|---|
-| <NNNN> | <imperative — e.g. "Use a sliding-window counter for rate limiting"> | Accepted | §<N> |
-| <NNNN> | <imperative — e.g. "Co-locate the worker in the API process"> | Accepted | §<N> |
+| 0001 | Confine pause state to io, leave core untouched | Accepted | §4 |
 
-ADR files live under `docs/features/<slug>/adr/NNNN-<title>.md`.
+ADR files live under `docs/features/pause-resume/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+**QG-1. Terminal-restoration reliability**
+- **When:** the process exits via any path it can detect and react to — Ctrl+C keypress, SIGTERM, SIGHUP, normal completion, or an unhandled internal error — paused or not.
+- **Then:** the owning shell's terminal input mode is restored to exactly what it was before `pomodoro` started, for 100% of those exit paths (spec §6 NFR row 3; SIGKILL/process-group teardown is explicitly out of reach by construction, not a target).
+- **How verify:** tests covering each enumerated exit path, extending the existing `io` smoke-test convention (fake timers + `process.stdout.write` spies).
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-2. Paused-time accuracy**
+- **When:** a developer pauses and resumes any number of times, mid-second, mid-phase.
+- **Then:** the remaining phase time is preserved exactly — never rounded up — so no number of pause/resume cycles can grow a phase beyond its nominal duration (spec §6 NFR row 2).
+- **How verify:** unit test in `io` with a fake timer, confirming `core.tick()` is simply not called while paused.
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
-
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
-
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-3. Pause/resume visual responsiveness**
+- **When:** a developer presses spacebar.
+- **Then:** the display repaints once, immediately, on that keypress — not on a periodic interval while paused (spec §6 NFR row 1).
+- **How verify:** a thin `io` smoke test asserting the PAUSED marker appears in the write triggered by the pause keypress, and clears in the write triggered by the resume keypress.
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| Ctrl+Z/SIGTSTP suspend leaves the terminal in raw mode for the suspended window; spacebar may stop toggling pause after `fg` | Low | Accepted non-goal (spec §3); documented, not fixed this pass | Vitalii |
+| Resize during a pause leaves a stale frame (no `SIGWINCH` handling exists in the project at all) | Low | Accepted non-goal (spec §3); pre-existing gap, not introduced by this feature | Vitalii |
+| A stray keystroke or pasted space accidentally pauses the session | Low | Accepted non-goal (spec §3); self-correcting, press space again | Vitalii |
+| `io/timer.ts` is already the project's largest file (brownfield scan); this feature adds pause bookkeeping and signal handlers on top | Low | Mitigated by extracting keystroke capture into its own `io/keypress.ts` module (§5) rather than growing `timer.ts` further | Vitalii |
+| Open architectural decision: should the three accepted-risk non-goals above get a dedicated follow-up fix in a later pass? | Open question | Resolve before this feature's `sdd:review`; default now — accepted, no fix planned (spec §8) | human |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- None beyond the three accepted non-goals above — this feature introduces no new debt beyond what the spec already named and accepted.
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
-
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| developer | the person running `pomodoro` in their own terminal — see `CONTEXT.md` |
+| paused | a boolean state orthogonal to Phase, confined entirely to `io` per ADR-0001 — see `CONTEXT.md` |
