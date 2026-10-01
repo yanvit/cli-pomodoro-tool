@@ -35,13 +35,11 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 - Background/daemon mode — `docs/idea-brief.md §5`
 - OS system notifications — `docs/idea-brief.md §5`
 - Pause/resume — `docs/idea-brief.md §5`
-- Do-Not-Disturb / attention enforcement — `docs/idea-brief.md §5`
+- Do-Not-Disturb / attention enforcement — `docs/idea-brief.md §5`; confirmed **permanent** via D1 (see Decisions so far), not a v1-only deferral
 
 ## Open decisions
 
-| # | Question | Type | Owner | Blocks |
-|---|---|:---:|:---:|:---:|
-| D1 | Should a later version add OS Do-Not-Disturb toggling during work sessions to actually enforce focus, not just track time? (`docs/idea-brief.md §8`) | grilling | human | none |
+<!-- none — D1 and D2 are both resolved; see Decisions so far. -->
 
 ## Decisions so far
 
@@ -49,6 +47,7 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 - Thin `cli / core / io` module split → [`docs/adr/0002-thin-cli-core-io-module-split.md`](adr/0002-thin-cli-core-io-module-split.md)
 - Minimal single-command timer: fixed 25/5/15 cycle, bell+text alert, no persistence → [`docs/idea-brief.md §7`](idea-brief.md)
 - **D2 resolved:** the bell (`\x07`) is a raw control character, not an ANSI sequence — it works on every Windows terminal host including legacy `cmd.exe`, so no fallback is needed there. The actual portability risk is the dashboard's ANSI color/cursor-control escapes garbling on legacy conhost without VT processing enabled; resolved by documenting it in `README.md` rather than adding platform-detection code, consistent with this project's minimalism (the user base is Mac/Linux-primary per `idea-brief.md §3`).
+- **D1 resolved — permanently closed, not deferred:** no v2 accountability/Do-Not-Disturb mechanism will be built. Grilled 2026-10-01: chose to keep the tool a pure clock+bell rather than add enforcement. Reinforced by research showing no stable public API exists for toggling Focus/DND on macOS, Windows, or Linux — every known path is an unofficial workaround requiring manual one-time setup (e.g. a hand-built macOS Shortcut) and OS permission grants, and has broken across past OS updates. "Do-Not-Disturb / attention enforcement" in Out of scope below is now a permanent exclusion, not a v1-only deferral.
 
 ## Dependency graph
 
