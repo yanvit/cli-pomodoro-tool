@@ -12,7 +12,8 @@ Usage:
   pomodoro --version  Print the version number
 
 The cycle is fixed: 25 min work, 5 min short break, 15 min long break
-every 4th round. Ctrl+C exits immediately.`;
+every 4th round. Press spacebar to pause/resume (dashboard and compact
+modes only). Ctrl+C exits immediately.`;
 
 const VERSION = "0.1.0";
 

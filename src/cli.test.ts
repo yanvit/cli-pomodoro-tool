@@ -3,12 +3,19 @@ import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { run } from "./cli.js";
 
 describe("cli smoke test", () => {
   it("exits 0 on --help", () => {
     expect(run(["--help"])).toBe(0);
+  });
+
+  it("review 2026-10-01 #11: --help mentions the spacebar pause/resume keybinding", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    run(["--help"]);
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("spacebar"));
+    logSpy.mockRestore();
   });
 });
 
