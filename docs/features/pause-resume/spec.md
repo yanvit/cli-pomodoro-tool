@@ -158,5 +158,5 @@ Grounding for this approach: competitive research confirms spacebar + indefinite
 ## 8. Open questions
 
 - [ ] Should any of the three accepted-risk non-goals (§3: Ctrl+Z/SIGTSTP re-arming, resize-during-pause stale frame, stray-keystroke pause) get a dedicated follow-up fix in a later pass, or stay permanently accepted like the D1 decision? Default now: accepted, no fix planned. — owner: human, due: before this feature's `sdd:review`.
-- [ ] Exact visual treatment of the "PAUSED" indicator (color, placement, whether it reuses the existing phase-color system) is left to design/implementation. Default now: implementer's reasonable choice, consistent with the existing phase-color conventions in `src/io/phaseColor.ts`. — owner: agent, due: before `sdd:design`.
-- [ ] Does pause/resume state need to mean anything beyond a single running process (e.g. a future multi-session or daemon mode)? Default now: no — single-session-per-process only, consistent with this tool's explicit rejection of background/daemon mode. — owner: human, due: before `sdd:design` (sanity check, not expected to change).
+- [x] Exact visual treatment of the "PAUSED" indicator — resolved in `sad.md` §5: reuses `phaseColor.ts` as-is (no new color), appended to the dashboard header line and prepended to the compact line.
+- [x] Whether pause/resume means anything beyond a single running process — resolved in `sad.md` §4: `target_surfaces: [cli]`, single existing surface, no multi-process/daemon topology introduced.
