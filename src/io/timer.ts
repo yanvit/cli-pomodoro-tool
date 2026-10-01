@@ -42,6 +42,7 @@ export function startTimer(): void {
   const mode: RenderMode = pickRenderMode(Boolean(process.stdout.isTTY), process.stdout.columns);
   let state: CycleState = initialState;
   let paused = false;
+  let pausedAt: number | undefined;
   let cleanedUp = false;
   let keypressHandle: KeypressHandle | undefined;
 
@@ -69,9 +70,7 @@ export function startTimer(): void {
     logPlainPhaseStart(state);
   }
 
-  const interval = setInterval(() => {
-    if (paused) return;
-
+  function onTick(): void {
     const transition = tick(state);
     state = transition.state;
 
@@ -84,27 +83,40 @@ export function startTimer(): void {
     } else if (transition.type === "phase-change") {
       logPlainPhaseStart(state);
     }
-  }, 1000);
+  }
+
+  let interval = setInterval(onTick, 1000);
 
   if (mode === "dashboard" || mode === "compact") {
     keypressHandle = startKeypressCapture(
       () => {
         if (!paused) {
           paused = true;
+          pausedAt = Date.now();
+          clearInterval(interval);
           if (mode === "dashboard") drawDashboard(state, true);
           else drawCompact(state, true);
           return;
         }
 
         paused = false;
-        if (state.secondsRemaining <= 1) {
-          // the phase was already due to end while paused — flush the
-          // deferred transition immediately, rather than waiting for the
-          // next 1s interval tick (AC-05).
+        const pausedForMs = Date.now() - (pausedAt ?? Date.now());
+        pausedAt = undefined;
+        if (state.secondsRemaining <= 1 && pausedForMs >= 1000) {
+          // the phase was already due to end — a full second's worth of
+          // real time actually passed while paused — so flush the
+          // deferred transition immediately rather than waiting for the
+          // next 1s interval tick (AC-05). A near-instant pause/resume at
+          // secondsRemaining === 1 falls through to the re-armed interval
+          // below instead, exactly like an unpaused tick would.
           const transition = tick(state);
           state = transition.state;
           if (transition.type === "phase-change") process.stdout.write(BELL);
         }
+        // re-arm fresh rather than reuse the original interval's leftover
+        // phase, so the next tick lands a full second after resume, not
+        // whenever the original schedule happened to land (review #7).
+        interval = setInterval(onTick, 1000);
         if (mode === "dashboard") drawDashboard(state, false);
         else drawCompact(state, false);
       },

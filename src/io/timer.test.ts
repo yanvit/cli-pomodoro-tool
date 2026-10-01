@@ -115,6 +115,41 @@ describe("startTimer pause/resume (compact mode)", () => {
     expect(written()).toContain("Short break");
     expect(written()).toContain("\x07"); // bell fires on resume, not on the next interval tick
   });
+
+  it("review 2026-10-01 #4: pausing and resuming near-instantly at secondsRemaining === 1 must NOT flush the transition early", () => {
+    startTimer();
+    vi.advanceTimersByTime(1499 * 1000); // secondsRemaining === 1
+    writeSpy.mockClear();
+
+    pressSpace(); // pause at secondsRemaining === 1
+    writeSpy.mockClear();
+    pressSpace(); // resume with ~0 real time elapsed while paused
+
+    expect(written()).not.toContain("Short break"); // must not transition yet
+    expect(written()).not.toContain("\x07"); // no premature bell
+
+    writeSpy.mockClear();
+    vi.advanceTimersByTime(1000); // the ordinary tick, exactly 1s after resume
+    expect(written()).toContain("Short break");
+    expect(written()).toContain("\x07");
+  });
+
+  it("review 2026-10-01 #7: resuming re-arms the interval, so the next tick lands a full second after resume rather than on the stale interval phase", () => {
+    startTimer();
+    vi.advanceTimersByTime(500); // interval hasn't fired yet (fires every 1000ms)
+    pressSpace(); // pause at 25:00 — no tick has occurred
+
+    vi.advanceTimersByTime(2000); // real time passes while paused; old interval's schedule would have fired (and been skipped) twice by now
+    writeSpy.mockClear();
+    pressSpace(); // resume
+
+    writeSpy.mockClear();
+    vi.advanceTimersByTime(999);
+    expect(written()).toBe(""); // less than a full second since resume — no tick yet
+
+    vi.advanceTimersByTime(1);
+    expect(written()).toContain("24:59"); // exactly 1s after resume, the first tick fires
+  });
 });
 
 describe("startTimer pause/resume (dashboard mode)", () => {
