@@ -28,7 +28,7 @@ target_surfaces: [cli]
 | Role | Interest | Sign-off owner? |
 |---|---|---|
 | developer (CONTEXT glossary) | the person running `pomodoro`, interrupted mid-phase | No |
-| Tech Lead | SAD approval | Yes |
+| Vitalii (owner, solo maintainer) | SAD approval | Yes |
 
 <!-- Decision overrides (¶4) — none this pass. -->
 
@@ -39,7 +39,7 @@ target_surfaces: [cli]
 - No framework, no datastore — unchanged (`docs/adr/0001-use-nodejs-typescript-with-no-framework-or-datastore.md`).
 - Zero new runtime dependencies — keystroke capture uses Node's built-in `node:readline` `emitKeypressEvents` + `process.stdin.setRawMode`, confirmed feasible via AFK research during `roadmap` (`docs/roadmap.md` §Decisions so far) — this was already settled upstream of this design pass, not a fresh choice here.
 - Module wiring: direct function calls, no DI container (`docs/adr/0002-thin-cli-core-io-module-split.md`).
-- Layering: `cli` (entry point, argv) → `core` (pure state machine) → `io` (real-time driver) — unchanged; this feature adds to `io` only (see ADR-0001).
+- Layering: `cli` (entry point, argv) composes both `core` (pure state machine) and `io` (real-time driver) directly; `io` calls into `core`'s `tick()`, `core` calls into nothing — unchanged; this feature adds to `io` only (see ADR-0001).
 
 **Organisational.**
 - Effort budget: S (`docs/features/pause-resume/.size`) — ≤1 week.
@@ -84,7 +84,7 @@ C4Context
 **Top strategic choices (the seeds for ADRs):**
 
 1. **Target surface: `cli` (existing, unchanged)** — this feature extends the project's one and only surface; it does not introduce a new container or process. Derived from spec §1 "for whom" (the `developer` role) + the project having exactly one deployable (`docs/architecture-map.md` module inventory). Blast-radius: 0-of-3 (not irreversible, not multi-module beyond the existing single surface, no legitimate alternative — the entire project *is* this CLI) → inline, no ADR.
-2. **Pause state is confined entirely to `io`** — `core/cycle.ts` stays a pure, untouched state machine; pausing means the `setInterval` callback in `io/timer.ts` conditionally skips calling `core.tick()`. See **ADR-0001** for the full decision record (this was the one genuine blast-radius decision in this pass: a reasonable engineer could instead model `paused` inside `CycleState`, and getting it wrong would contradict `CONTEXT.md`'s glossary entry and the roadmap's zone claim).
+2. **Pause state is confined entirely to `io`** — `core/cycle.ts` stays a pure, untouched state machine; pausing means the `setInterval` callback in `io/timer.ts` conditionally skips calling `core.tick()`. Resuming calls `core.tick()` once immediately, synchronously, on the resume keypress itself — not waiting for the next 1s interval — which is what lets spec AC-05's "deferred transition fires immediately at the moment of resume" hold even when the phase was already due to end while paused; the interval is then re-armed for subsequent ticks. See **ADR-0001** for the full decision record (this was the one genuine blast-radius decision in this pass: a reasonable engineer could instead model `paused` inside `CycleState`, and getting it wrong would falsify the roadmap's zone claim — see ADR-0001 for why `CONTEXT.md` doesn't itself settle this).
 3. **Keystroke capture via a new, focused `io/keypress.ts` module** — follows the existing pattern of small single-purpose helpers already in `src/io/` (`render.ts`, `renderMode.ts`, `compactLine.ts`, `phaseColor.ts`) rather than growing `timer.ts` (already the project's largest file) further. Blast-radius: 1-of-3 (a legitimate alternative — inline in `timer.ts` — exists, but it's neither irreversible nor multi-module) → inline, decided with the owner, no ADR.
 4. **Signal handling is an explicit, enumerated set, not "catch everything"** — `SIGINT` (keypress-detected, since raw mode disables the OS's native SIGINT delivery), `SIGTERM`, `SIGHUP`, normal completion, and unhandled-error paths are covered; `SIGKILL` and process-group teardown are explicitly out of reach by construction (spec AC-06) — no process can intercept them, so there is no legitimate alternative to exclude them. Blast-radius: 0-of-3 → inline (see §8, §11).
 
@@ -92,7 +92,7 @@ Target surface written to frontmatter: `target_surfaces: [cli]`.
 
 ## 5. Building block view
 
-Unchanged layering style: `cli` (entry, argv parsing) → `core` (pure domain, zero I/O) → `io` (real-time driver, timers, terminal control). This feature adds entirely within `io`, per ADR-0001.
+Unchanged layering style: `cli` (entry, argv parsing) composes both `core` (pure domain, zero I/O) and `io` (real-time driver, timers, terminal control) directly — no DI container; `io` is the one that calls into `core`'s `tick()`, `core` never calls into `io`. This feature adds entirely within `io`, per ADR-0001.
 
 **Internal decomposition:**
 
@@ -144,8 +144,10 @@ sequenceDiagram
     io->>Developer: repaint — PAUSED indicator shown (same keypress turn)
     Note over io,core: core.tick() is not called while paused — core state is frozen exactly
     Developer->>io: presses spacebar again
-    io->>core: tick() resumes, remaining time unchanged
-    io->>Developer: repaint — PAUSED indicator cleared
+    io->>core: tick() called once immediately, synchronously, on this keypress
+    core-->>io: a due transition fires right here if the phase had already ended while paused (AC-05) — otherwise an ordinary tick
+    io->>Developer: repaint — reflects any flushed transition/bell, PAUSED indicator cleared
+    io->>io: re-arm the 1s interval for subsequent ticks
 ```
 
 **Critical flow 2: Terminal always restored, whatever ends the process**

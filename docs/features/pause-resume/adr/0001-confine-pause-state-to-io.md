@@ -19,8 +19,7 @@ ticket: "docs/roadmap.md step 4"
 
 ## Decision drivers
 
-- `CONTEXT.md`'s "paused" glossary entry is already written as "a boolean state **orthogonal** to Phase... NOT a 4th Phase value" — a domain commitment made before this design pass.
-- `docs/roadmap.md`'s execution-path wave assignment zones step 4 (pause-resume) to `src/io/` only, declared "disjoint" from step 5's `src/cli.ts` + `src/core/` zone specifically so the two can parallelize safely.
+- `docs/roadmap.md`'s execution-path wave assignment zones step 4 (pause-resume) to `src/io/` only, declared "disjoint" from step 5's `src/cli.ts` + `src/core/` zone specifically so the two can parallelize safely — this is the decisive driver, not a domain-concept constraint (`CONTEXT.md`'s "paused" entry defines the concept, not where it's implemented; either option satisfies it equally).
 - `spec.md` §6 NFR "Paused-time accuracy" already states the measurement as "pausing withholds the tick entirely, so the existing `core` state machine needs no change."
 - The project's own convention (`CLAUDE.md`, `docs/architecture-map.md`): `core` is pure, no timers, no I/O, fully unit-testable with a fake clock — a design goal worth preserving.
 
@@ -31,7 +30,7 @@ ticket: "docs/roadmap.md step 4"
 
 ## Decision outcome
 
-**Chosen:** Option 1 (pause lives entirely in `io`). It keeps `core/cycle.ts` exactly as pure and timer-agnostic as every existing convention already commits to, avoids touching the one module this project is strictest about ("no timers, no I/O... fully unit-testable without real waits"), and matches three things already written down before this decision: the `CONTEXT.md` glossary entry, the roadmap's io-only zone claim, and the spec's own NFR measurement text. Option 2 is a legitimate alternative a reasonable engineer could reach for — "the state machine should know its own state" — but it would mean `tick()` stops being a pure function of elapsed time alone, and would contradict all three of those already-committed documents.
+**Chosen:** Option 1 (pause lives entirely in `io`). It keeps `core/cycle.ts` exactly as pure and timer-agnostic as every existing convention already commits to, avoids touching the one module this project is strictest about ("no timers, no I/O... fully unit-testable without real waits"), and matches two things already written down before this decision: the roadmap's io-only zone claim for this step, and the spec's own NFR measurement text ("the existing `core` state machine needs no change"). Option 2 is a legitimate alternative a reasonable engineer could reach for — "the state machine should know its own state," and nothing in `CONTEXT.md`'s "paused" definition actually rules it out (a `paused: boolean` field alongside `phase` on `CycleState` would still be "orthogonal to Phase, not a 4th Phase value" — the glossary fixes the *domain concept*, not where it's implemented). Option 2 loses on the roadmap/NFR grounds alone: it would mean `tick()` stops being a pure function of elapsed time, and it would falsify the roadmap's already-published parallel-wave zone claim for this step.
 
 ## Consequences
 
