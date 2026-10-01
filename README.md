@@ -29,7 +29,9 @@ pomodoro --help   # show usage
 pomodoro --version
 ```
 
-Ctrl+C exits immediately — nothing is saved.
+Press **spacebar** to pause and resume the countdown (dashboard and compact modes only — not
+available when output isn't a terminal). Ctrl+C exits immediately — nothing is saved, paused or
+not.
 
 ## Terminal compatibility
 
