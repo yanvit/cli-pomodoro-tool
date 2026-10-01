@@ -22,7 +22,7 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 | 1 | Scaffold the project skeleton | `docs/architecture-map.md` (mode: greenfield-bootstrap) | XS | shipped |
 | 2 | Build the CLI Pomodoro timer | `docs/idea-brief.md §7 Recommendation` | S | shipped |
 | 3 | Harden for distribution: `io/timer.ts` smoke test, README, npm packaging metadata, D2 resolution | this conversation | XS | shipped |
-| 4 | [Pause/resume the countdown with spacebar](features/pause-resume/spec.md) | `docs/roadmap.md §Decisions so far` (grilled) | S | spec'd |
+| 4 | [Pause/resume the countdown with spacebar](features/pause-resume/spec.md) | `docs/roadmap.md §Decisions so far` (grilled) | S | shipped |
 | 5 | Override work/break durations via CLI flags — bare `pomodoro` unchanged | `docs/roadmap.md §Decisions so far` (grilled) | S | idea |
 | 6 | Opt-in session history — append-only JSONL at the platform's data dir | `docs/roadmap.md §Decisions so far` (grilled) | M | idea |
 
@@ -77,3 +77,4 @@ flowchart LR
 | 2 · Build the timer | 2026-09-30 | `9251e83` |
 | 2 · Dashboard UI polish (big-digit countdown, anti-scroll fix, non-TTY/narrow-terminal degradation, warm color shift) | 2026-09-30 | `686e7f3`, `de897ef`, `85444bb`, `e80e9d5` |
 | 3 · Harden for distribution | 2026-10-01 | `f89a258` |
+| 4 · Pause/resume the countdown with spacebar | 2026-10-01 | `9b63999`..`15e32df` ([changelog](features/pause-resume/CHANGELOG.md)) |
