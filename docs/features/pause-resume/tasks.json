@@ -60,6 +60,56 @@
       "dod": "CLAUDE.md no longer lists \"no pause/resume\" and README documents the spacebar keybinding.",
       "files_hint": ["CLAUDE.md", "README.md"],
       "file": "docs/features/pause-resume/tasks/t6-docs-update.md"
+    },
+    {
+      "id": "T7",
+      "title": "Fix-forward (review 2026-10-01 #1/#2/#3): move the PAUSED indicator into render.ts/compactLine.ts per spec §8 placement",
+      "layer": "app",
+      "deps": [],
+      "acs": ["AC-01", "AC-02", "AC-08"],
+      "dod": "renderFrame() appends PAUSED to the header line and renderCompactLine() prepends it to the line, both covered by unit tests; drawDashboard/drawCompact in timer.ts delegate to them so a resumed repaint can never leave stale PAUSED text, and the compact line never exceeds terminalWidth while paused.",
+      "files_hint": ["src/io/render.ts", "src/io/render.test.ts", "src/io/compactLine.ts", "src/io/compactLine.test.ts", "src/io/timer.ts"],
+      "file": "docs/features/pause-resume/tasks/t7-fix-paused-indicator-placement.md"
+    },
+    {
+      "id": "T8",
+      "title": "Fix-forward (review 2026-10-01 #4/#7): make the resume-flush real-time-aware and re-arm the countdown interval across pause/resume",
+      "layer": "app",
+      "deps": [],
+      "acs": ["AC-05", "AC-02"],
+      "dod": "Resuming only flushes the deferred transition immediately when at least one full second of real time actually elapsed while paused (tracked via Date.now()); a near-zero-duration pause/resume at secondsRemaining<=1 waits for the next tick like normal. The countdown interval is cleared on pause and re-armed fresh on resume so post-resume cadence isn't skewed by the interval's original phase.",
+      "files_hint": ["src/io/timer.ts", "src/io/timer.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t8-fix-resume-flush-timing.md"
+    },
+    {
+      "id": "T9",
+      "title": "Fix-forward (review 2026-10-01 #8): remove the production removeAllListeners workaround",
+      "layer": "app",
+      "deps": [],
+      "acs": [],
+      "dod": "src/io/timer.ts no longer calls process.removeAllListeners for exit/SIGINT/SIGTERM/SIGHUP; every test describe block that calls startTimer() cleans up its own process listeners in afterEach instead, with no cross-test listener leakage.",
+      "files_hint": ["src/io/timer.ts", "src/io/timer.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t9-remove-listener-workaround.md"
+    },
+    {
+      "id": "T10",
+      "title": "Fix-forward (review 2026-10-01 #9): add missing AC-03/AC-06 exit-path and plain-mode test coverage",
+      "layer": "app",
+      "deps": ["T9"],
+      "acs": ["AC-03", "AC-06"],
+      "dod": "Tests confirm: spacebar does nothing in plain mode (no keystroke capture wired); an unhandled exception still restores the terminal via the exit-event cleanup; the native (non-keypress) SIGINT handler restores the terminal and exits.",
+      "files_hint": ["src/io/timer.test.ts"],
+      "file": "docs/features/pause-resume/tasks/t10-exit-path-coverage.md"
+    },
+    {
+      "id": "T11",
+      "title": "Fix-forward (review 2026-10-01 #5/#6/#10/#11): sync docs to the as-shipped architecture",
+      "layer": "docs",
+      "deps": ["T7", "T8"],
+      "acs": [],
+      "dod": "sad.md §5/§8, tasks.json T4/T5, and tracker.md accurately describe the PAUSED indicator living in render.ts/compactLine.ts; spec.md §8's open question is checked off with the owner's accepted-default resolution; src/cli.ts --help mentions the spacebar keybinding.",
+      "files_hint": ["docs/features/pause-resume/sad.md", "docs/features/pause-resume/spec.md", "docs/features/pause-resume/tasks/tracker.md", "src/cli.ts"],
+      "file": "docs/features/pause-resume/tasks/t11-docs-sync.md"
     }
   ]
 }

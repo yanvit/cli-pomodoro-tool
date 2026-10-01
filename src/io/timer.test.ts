@@ -165,6 +165,21 @@ describe("startTimer pause/resume (dashboard mode)", () => {
     pressSpace(); // resume
     expect(written()).not.toContain("PAUSED");
   });
+
+  it("review 2026-10-01 #1: resume redraws the exact same number of lines as the pause draw, so no stale PAUSED row is ever left uncleared", () => {
+    startTimer();
+    vi.advanceTimersByTime(1000);
+    writeSpy.mockClear();
+
+    pressSpace(); // pause
+    const pausedLineCount = written().split("\n").length;
+
+    writeSpy.mockClear();
+    pressSpace(); // resume
+    const resumedLineCount = written().split("\n").length;
+
+    expect(resumedLineCount).toBe(pausedLineCount);
+  });
 });
 
 describe("startTimer exit-path handling", () => {

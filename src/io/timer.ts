@@ -15,16 +15,14 @@ const CLEAR_TO_EOL = "\x1b[K";
 const BELL = "\x07";
 
 function drawDashboard(state: CycleState, paused = false): void {
-  const frame = renderFrame(state, process.stdout.columns);
+  const frame = renderFrame(state, process.stdout.columns, paused);
   const lines = frame.map((line) => line + CLEAR_TO_EOL).join("\n");
-  const pausedLine = paused ? "\nPAUSED" : "";
-  process.stdout.write(CURSOR_HOME + phaseColorAnsi(state) + lines + pausedLine + RESET);
+  process.stdout.write(CURSOR_HOME + phaseColorAnsi(state) + lines + RESET);
 }
 
 function drawCompact(state: CycleState, paused = false): void {
-  const line = renderCompactLine(state, process.stdout.columns);
-  const suffix = paused ? " PAUSED" : "";
-  process.stdout.write("\r" + phaseColorAnsi(state) + line + suffix + RESET + CLEAR_TO_EOL);
+  const line = renderCompactLine(state, process.stdout.columns, paused);
+  process.stdout.write("\r" + phaseColorAnsi(state) + line + RESET + CLEAR_TO_EOL);
 }
 
 function logPlainPhaseStart(state: CycleState): void {

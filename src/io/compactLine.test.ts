@@ -26,4 +26,16 @@ describe("renderCompactLine", () => {
     const halfwayFilled = renderCompactLine(halfway, 60).split("█").length - 1;
     expect(halfwayFilled).toBeGreaterThan(startFilled);
   });
+
+  it("AC-08/AC-01 (review 2026-10-01 #2/#3): prepends PAUSED when paused, never exceeding terminalWidth", () => {
+    const line = renderCompactLine(initialState, 40, true);
+    expect(line.startsWith("PAUSED ")).toBe(true);
+    expect(line.length).toBeLessThanOrEqual(40);
+
+    const notPaused = renderCompactLine(initialState, 40, false);
+    expect(notPaused).not.toContain("PAUSED");
+
+    const defaulted = renderCompactLine(initialState, 40);
+    expect(defaulted).not.toContain("PAUSED");
+  });
 });

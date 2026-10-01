@@ -34,8 +34,8 @@ function center(line: string, width: number): string {
   return " ".repeat(left) + line + " ".repeat(right);
 }
 
-export function renderFrame(state: CycleState, terminalWidth?: number): string[] {
-  const header = `${PHASE_LABEL[state.phase]} · Round ${state.round}/4`;
+export function renderFrame(state: CycleState, terminalWidth?: number, paused = false): string[] {
+  const header = `${PHASE_LABEL[state.phase]} · Round ${state.round}/4${paused ? "  PAUSED" : ""}`;
   const digitLines = renderBigText(formatTime(state.secondsRemaining));
   const bar = progressBar(state);
   const footer = "Ctrl+C to quit";

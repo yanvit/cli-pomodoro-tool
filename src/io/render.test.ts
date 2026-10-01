@@ -27,4 +27,15 @@ describe("renderFrame", () => {
     const wide = renderFrame(initialState, 120);
     expect(wide[0].length).toBeGreaterThan(narrow[0].length);
   });
+
+  it("AC-08/AC-02 (review 2026-10-01 #1/#3): appends PAUSED to the header line when paused, and omits it when not", () => {
+    const paused = renderFrame(initialState, undefined, true).join("\n");
+    expect(paused).toContain("PAUSED");
+
+    const running = renderFrame(initialState, undefined, false).join("\n");
+    expect(running).not.toContain("PAUSED");
+
+    const defaulted = renderFrame(initialState).join("\n");
+    expect(defaulted).not.toContain("PAUSED");
+  });
 });
