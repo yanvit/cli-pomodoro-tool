@@ -1,5 +1,6 @@
 import { initialState, tick, type CycleState } from "../core/cycle.js";
 import { renderCompactLine } from "./compactLine.js";
+import { startKeypressCapture, type KeypressHandle } from "./keypress.js";
 import { phaseColorAnsi } from "./phaseColor.js";
 import { formatTime, PHASE_LABEL, renderFrame } from "./render.js";
 import { pickRenderMode, type RenderMode } from "./renderMode.js";
@@ -13,15 +14,17 @@ const SHOW_CURSOR = "\x1b[?25h";
 const CLEAR_TO_EOL = "\x1b[K";
 const BELL = "\x07";
 
-function drawDashboard(state: CycleState): void {
+function drawDashboard(state: CycleState, paused = false): void {
   const frame = renderFrame(state, process.stdout.columns);
   const lines = frame.map((line) => line + CLEAR_TO_EOL).join("\n");
-  process.stdout.write(CURSOR_HOME + phaseColorAnsi(state) + lines + RESET);
+  const pausedLine = paused ? "\nPAUSED" : "";
+  process.stdout.write(CURSOR_HOME + phaseColorAnsi(state) + lines + pausedLine + RESET);
 }
 
-function drawCompact(state: CycleState): void {
+function drawCompact(state: CycleState, paused = false): void {
   const line = renderCompactLine(state, process.stdout.columns);
-  process.stdout.write("\r" + phaseColorAnsi(state) + line + RESET + CLEAR_TO_EOL);
+  const suffix = paused ? " PAUSED" : "";
+  process.stdout.write("\r" + phaseColorAnsi(state) + line + suffix + RESET + CLEAR_TO_EOL);
 }
 
 function logPlainPhaseStart(state: CycleState): void {
@@ -31,6 +34,7 @@ function logPlainPhaseStart(state: CycleState): void {
 export function startTimer(): void {
   const mode: RenderMode = pickRenderMode(Boolean(process.stdout.isTTY), process.stdout.columns);
   let state: CycleState = initialState;
+  let paused = false;
   let cleanedUp = false;
 
   function cleanup(): void {
@@ -57,6 +61,8 @@ export function startTimer(): void {
   }
 
   const interval = setInterval(() => {
+    if (paused) return;
+
     const transition = tick(state);
     state = transition.state;
 
@@ -71,7 +77,38 @@ export function startTimer(): void {
     }
   }, 1000);
 
+  let keypressHandle: KeypressHandle | undefined;
+  if (mode === "dashboard" || mode === "compact") {
+    keypressHandle = startKeypressCapture(
+      () => {
+        if (!paused) {
+          paused = true;
+          if (mode === "dashboard") drawDashboard(state, true);
+          else drawCompact(state, true);
+          return;
+        }
+
+        paused = false;
+        if (state.secondsRemaining <= 1) {
+          // the phase was already due to end while paused — flush the
+          // deferred transition immediately, rather than waiting for the
+          // next 1s interval tick (AC-05).
+          const transition = tick(state);
+          state = transition.state;
+          if (transition.type === "phase-change") process.stdout.write(BELL);
+        }
+        if (mode === "dashboard") drawDashboard(state, false);
+        else drawCompact(state, false);
+      },
+      () => {
+        clearInterval(interval);
+        process.exit(0);
+      },
+    );
+  }
+
   process.on("SIGINT", () => {
+    keypressHandle?.stop();
     clearInterval(interval);
     process.exit(0);
   });
