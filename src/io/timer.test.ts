@@ -116,3 +116,102 @@ describe("startTimer pause/resume (compact mode)", () => {
     expect(written()).toContain("\x07"); // bell fires on resume, not on the next interval tick
   });
 });
+
+describe("startTimer exit-path handling", () => {
+  let writeSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let isTTYOriginal: boolean | undefined;
+  let columnsOriginal: number | undefined;
+  let setRawModeOriginal: unknown;
+  let setRawModeMock: ReturnType<typeof vi.fn>;
+
+  // SHOW_CURSOR + "\n" — the exact terminal-restoration write cleanup()
+  // performs in compact mode.
+  const CLEANUP_WRITE = "\x1b[?25h\n";
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    isTTYOriginal = process.stdout.isTTY;
+    columnsOriginal = process.stdout.columns;
+    process.stdout.isTTY = true;
+    process.stdout.columns = 20; // narrow -> compact mode, not dashboard
+    writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    setRawModeOriginal = (process.stdin as unknown as { setRawMode?: unknown }).setRawMode;
+    setRawModeMock = vi.fn();
+    (process.stdin as unknown as { setRawMode: (mode: boolean) => void }).setRawMode =
+      setRawModeMock;
+    // process.exit must never actually terminate the test runner. Mimic
+    // Node's real behaviour instead: process.exit() synchronously runs
+    // "exit" listeners before the process would actually go away.
+    exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      process.emit("exit", (code ?? 0) as never);
+      return undefined as never;
+    }) as typeof process.exit);
+  });
+
+  afterEach(() => {
+    writeSpy.mockRestore();
+    exitSpy.mockRestore();
+    process.stdout.isTTY = isTTYOriginal;
+    process.stdout.columns = columnsOriginal;
+    (process.stdin as unknown as { setRawMode: unknown }).setRawMode = setRawModeOriginal;
+    process.stdin.removeAllListeners("keypress");
+    process.removeAllListeners("exit");
+    process.removeAllListeners("SIGTERM");
+    process.removeAllListeners("SIGHUP");
+    process.removeAllListeners("SIGINT");
+    vi.useRealTimers();
+  });
+
+  function cleanupWriteCount(): number {
+    return writeSpy.mock.calls.filter((call) => call[0] === CLEANUP_WRITE).length;
+  }
+
+  it("AC-06: SIGTERM runs cleanup() exactly once, restoring the terminal", () => {
+    startTimer();
+    writeSpy.mockClear();
+
+    process.emit("SIGTERM");
+
+    expect(cleanupWriteCount()).toBe(1);
+  });
+
+  it("AC-06: SIGHUP runs cleanup() exactly once, restoring the terminal", () => {
+    startTimer();
+    writeSpy.mockClear();
+
+    process.emit("SIGHUP");
+
+    expect(cleanupWriteCount()).toBe(1);
+  });
+
+  it("AC-06: cleanup() is idempotent across repeated exit signals (SIGTERM then SIGTERM again)", () => {
+    startTimer();
+    writeSpy.mockClear();
+
+    process.emit("SIGTERM");
+    process.emit("SIGTERM"); // a second signal arriving before the process has
+    // actually gone away must not re-run the terminal-restoration write
+
+    expect(cleanupWriteCount()).toBe(1);
+  });
+
+  it("AC-07: Ctrl+C via keypress exits cleanly (process.exit(0)) and runs cleanup() exactly once", () => {
+    startTimer();
+    writeSpy.mockClear();
+
+    process.stdin.emit("keypress", "", { name: "c", ctrl: true });
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(cleanupWriteCount()).toBe(1);
+  });
+
+  it("AC-06: SIGTERM also disables raw mode (stops keypress capture), not just the Ctrl+C path", () => {
+    startTimer();
+    setRawModeMock.mockClear();
+
+    process.emit("SIGTERM");
+
+    expect(setRawModeMock).toHaveBeenCalledWith(false);
+  });
+});

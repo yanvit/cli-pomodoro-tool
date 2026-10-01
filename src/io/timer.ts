@@ -32,14 +32,25 @@ function logPlainPhaseStart(state: CycleState): void {
 }
 
 export function startTimer(): void {
+  // This function owns the process-level "exit"/signal handlers below
+  // exclusively. Clear any listeners a prior startTimer() call in this same
+  // process may have left behind (relevant in tests, which invoke
+  // startTimer() repeatedly in one process) so cleanup() never double-fires.
+  process.removeAllListeners("exit");
+  process.removeAllListeners("SIGINT");
+  process.removeAllListeners("SIGTERM");
+  process.removeAllListeners("SIGHUP");
+
   const mode: RenderMode = pickRenderMode(Boolean(process.stdout.isTTY), process.stdout.columns);
   let state: CycleState = initialState;
   let paused = false;
   let cleanedUp = false;
+  let keypressHandle: KeypressHandle | undefined;
 
   function cleanup(): void {
     if (cleanedUp) return;
     cleanedUp = true;
+    keypressHandle?.stop();
     if (mode === "dashboard") {
       process.stdout.write(SHOW_CURSOR + EXIT_ALT_SCREEN);
     } else if (mode === "compact") {
@@ -77,7 +88,6 @@ export function startTimer(): void {
     }
   }, 1000);
 
-  let keypressHandle: KeypressHandle | undefined;
   if (mode === "dashboard" || mode === "compact") {
     keypressHandle = startKeypressCapture(
       () => {
@@ -108,7 +118,16 @@ export function startTimer(): void {
   }
 
   process.on("SIGINT", () => {
-    keypressHandle?.stop();
+    clearInterval(interval);
+    process.exit(0);
+  });
+
+  process.on("SIGTERM", () => {
+    clearInterval(interval);
+    process.exit(0);
+  });
+
+  process.on("SIGHUP", () => {
     clearInterval(interval);
     process.exit(0);
   });
