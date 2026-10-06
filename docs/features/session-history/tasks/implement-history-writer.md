@@ -35,7 +35,7 @@ This task delivers the writer whose entire contract is never letting a filesyste
 >
 > — `sad.md §5, Internal decomposition, verbatim` · full text: [sad.md](../sad.md)
 
-> **Opt-in toggle: `POMODORO_HISTORY=1`, exact-match, read once at process startup** — ... Unset, empty, or any value other than the literal `1` leaves history off (AC-06). Write-failure handling stays fully silent, no trace, ever.
+> **Opt-in toggle: `POMODORO_HISTORY=1`, exact-match, read fresh from `process.env` on each completed phase** — ... Unset, empty, or any value other than the literal `1` leaves history off (AC-06). Write-failure handling stays fully silent, no trace, ever.
 >
 > — `sad.md §4, item 4, abridged` · full text: [sad.md](../sad.md)
 
@@ -93,7 +93,7 @@ Internal — no API surface.
 
 ## Checklist
 
-- [ ] `isHistoryEnabled(): boolean` in `src/history/record.ts` — reads `process.env.POMODORO_HISTORY`, returns true iff it is exactly the string `"1"`; read once, not per-call-site memoized state beyond what a function naturally gives.
+- [ ] `isHistoryEnabled(): boolean` in `src/history/record.ts` — reads `process.env.POMODORO_HISTORY` fresh on each call, returns true iff it is exactly the string `"1"`; no startup-time caching.
 - [ ] `recordCompletedPhase(completedPhase: Phase, completedRound: number): void` — no-ops immediately if `isHistoryEnabled()` is false (AC-06/AC-02's no-op half lives here).
 - [ ] Inside: call `resolveHistoryDir()` (T1), `fs.mkdirSync(dir, { recursive: true })` wrapped in its own try/catch — on throw, return silently (AC-03).
 - [ ] Then `fs.appendFileSync(path, JSON.stringify({ phase: completedPhase, round: completedRound, completedAt: new Date().toISOString() }) + "\n")` wrapped in its own try/catch — on throw, return silently (AC-03).

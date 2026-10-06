@@ -60,7 +60,9 @@ data location:
 Only phases that complete naturally are recorded — Ctrl+C, a signal, or any other interruption
 never produces a record. If the write ever fails (permissions, a missing directory, a full disk)
 it is silently absorbed and the timer keeps running unaffected; a logging problem never breaks
-your countdown.
+your countdown. If your environment has none of `HOME`, `XDG_DATA_HOME` (Linux), or
+`LOCALAPPDATA` (Windows) set — e.g. a bare `env -i` shell, some cron setups, some containers —
+nothing is written anywhere, rather than falling back to the current directory.
 
 Without the opt-in, `pomodoro` behaves exactly as if this feature didn't exist: no file is
 created, nothing is written. Note that any process or user with access to your shell environment

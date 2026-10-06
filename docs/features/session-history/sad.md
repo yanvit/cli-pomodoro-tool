@@ -31,8 +31,8 @@ target_surfaces: [cli]
 | Vitalii (owner, solo maintainer) | SAD approval | Yes |
 
 <!-- Decision overrides (¶4) — none this pass; the two spec §8 open questions are resolved by
-adopting the spec's own stated defaults (see §4 item 4), not by override. spec.md §8 itself still
-needs a follow-up human edit to mark both closed — design does not edit spec.md. -->
+adopting the spec's own stated defaults (see §4 item 4), not by override. spec.md §8 itself was
+later ticked closed by commit e910ac5, citing this resolution. -->
 
 ## 2. Constraints
 
@@ -90,7 +90,7 @@ C4Context
 1. **Target surface: `cli` (existing, unchanged)** — this feature extends the project's one and only surface; no new container or process. Derived from spec §1 "for whom" (the `developer` role) + the project having exactly one deployable. Blast-radius: 0-of-3 (not irreversible, not multi-module beyond the existing single surface, no legitimate alternative — the entire project *is* this CLI) → inline, no ADR. `target_surfaces: [cli]` written to frontmatter.
 2. **A new `src/history/` module, called directly from `io` on every phase-change** — `io/timer.ts`'s existing `setInterval` callback, right where it already detects `transition.type === "phase-change"` to fire the bell, also calls `history.recordCompletedPhase(completedPhase, completedRound)` synchronously, using the *completed* phase and round (`transition.from` + the pre-tick round — see §5) rather than the upcoming phase the tick just transitioned into. `core/cycle.ts` and `cli.ts` are both completely untouched — the strongest possible proof that bare `pomodoro` stays byte-for-byte identical (AC-02). This is the one genuine blast-radius decision this pass (irreversible-ish: reversing later means moving files and re-wiring tests; multi-module: touches `io` + a new module + formally revisits ADR-0001/0002's "no persistence" framing per `docs/architecture-map.md` §Constraints; has legitimate alternatives: folding the logic into `io/timer.ts` directly, or having `cli.ts` inject a writer into `io` à la dependency injection) — confirmed with the owner, recorded as **ADR-0001**.
 3. **Write mechanism: synchronous `fs.mkdirSync`(recursive) + `fs.appendFileSync`, each independently wrapped in try/catch** — forced by spec §6 NFR's "0 new runtime dependencies" (rules out a path-resolution library) and AC-01's "the append completes... before the next phase's countdown begins" (rules out an async/fire-and-forget write). No legitimate alternative survives both constraints at once → inline, no ADR.
-4. **Opt-in toggle: `POMODORO_HISTORY=1`, exact-match, read fresh from `process.env` on each completed phase** — adopts the default spec.md §8 already proposed ("owner: Vitalii, due: before `sdd:design session-history`" — this design pass is that due point). Unset, empty, or any value other than the literal `1` leaves history off (AC-06). Per-call reading rather than a startup-time cache is a deliberate simplification: nothing in this single-process CLI mutates its own environment mid-run, so the two are behaviorally identical for AC-06, and per-call reading is what keeps `isHistoryEnabled()` trivially testable without a module-reload step (review `_review/review-2026-10-06.md` finding #5). Write-failure handling stays fully silent, no trace, ever — the spec's own stated default for its second §8 open question. Both are convention-level, reversible (an env-var name/semantics change is a one-line `paths.ts`/`record.ts` edit, not a rewrite) → inline, no ADR. This resolution is the record of it — spec.md §8 still shows both as open on disk and needs a follow-up human edit (or a light `clarify` pass) to mark them closed; §11's Open-Questions row shape is reserved for items still genuinely deferred, which these no longer are.
+4. **Opt-in toggle: `POMODORO_HISTORY=1`, exact-match, read fresh from `process.env` on each completed phase** — adopts the default spec.md §8 already proposed ("owner: Vitalii, due: before `sdd:design session-history`" — this design pass is that due point). Unset, empty, or any value other than the literal `1` leaves history off (AC-06). Per-call reading rather than a startup-time cache is a deliberate simplification: nothing in this single-process CLI mutates its own environment mid-run, so the two are behaviorally identical for AC-06, and per-call reading is what keeps `isHistoryEnabled()` trivially testable without a module-reload step (review `_review/review-2026-10-06.md` finding #5). Write-failure handling stays fully silent, no trace, ever — the spec's own stated default for its second §8 open question. Both are convention-level, reversible (an env-var name/semantics change is a one-line `paths.ts`/`record.ts` edit, not a rewrite) → inline, no ADR. This resolution is the record of it — spec.md §8 was ticked closed by commit e910ac5, citing this section; §11's Open-Questions row shape is reserved for items still genuinely deferred, which these no longer are.
 
 ## 5. Building block view
 
@@ -107,7 +107,7 @@ src/
 │   └── timer.ts          <modified — on transition.type === "phase-change", calls history.recordCompletedPhase(transition.from, completedRound) synchronously, alongside the existing bell. completedRound MUST be captured from the pre-tick state.round before the local `state` variable is reassigned to transition.state — nextPhase() (core/cycle.ts) advances round on the short_break→work and long_break→work edges, so by the time the post-tick state is in hand, its round no longer identifies the phase that just completed>
 └── history/
     ├── paths.ts           <new — resolves the OS-conventional per-user data dir; pure function of process.platform + env (XDG_DATA_HOME / HOME / LOCALAPPDATA), paths already settled by docs/roadmap.md>
-    └── record.ts          <new — isHistoryEnabled() reads POMODORO_HISTORY fresh on each call; recordCompletedPhase(completedPhase, completedRound) ensures the dir exists (mkdirSync, independently every call) and appends one JSON line {phase: completedPhase, round: completedRound, completedAt}; both the mkdir and the append are independently try/catch'd — any failure is silently absorbed, never thrown (AC-03)>
+    └── record.ts          <new — isHistoryEnabled() reads POMODORO_HISTORY fresh on each call; recordCompletedPhase(completedPhase, completedRound) first no-ops silently if resolveHistoryDir() returns a non-absolute path (HOME/XDG_DATA_HOME/LOCALAPPDATA all unset — review-2026-10-06 round 2 #1), otherwise ensures the dir exists (mkdirSync, independently every call) and appends one JSON line {phase: completedPhase, round: completedRound, completedAt}; both the mkdir and the append are independently try/catch'd — any failure is silently absorbed, never thrown (AC-03)>
 ```
 
 **C4 Container (L2):**
@@ -151,9 +151,14 @@ sequenceDiagram
     io->>history: recordCompletedPhase(completedPhase, completedRound)
     history->>history: isHistoryEnabled()? — POMODORO_HISTORY must be exactly "1"
     alt opted in
-        history->>history: ensure the OS-conventional data dir exists (mkdirSync, every call)
-        history->>history: append one JSON line {phase, round, completedAt}
-        Note over history: any failure here (dir or write) is silently absorbed — never thrown (AC-03)
+        history->>history: resolveHistoryDir() returns an absolute path?
+        alt unresolvable (HOME/XDG_DATA_HOME/LOCALAPPDATA all unset)
+            Note over history: no-op — never writes relative to cwd, silently absorbed (AC-03, AC-05)
+        else resolvable
+            history->>history: ensure the OS-conventional data dir exists (mkdirSync, every call)
+            history->>history: append one JSON line {phase, round, completedAt}
+            Note over history: any failure here (dir or write) is silently absorbed — never thrown (AC-03)
+        end
     else not opted in
         history->>history: no-op — no dir created, no file touched (AC-02, AC-06)
     end
