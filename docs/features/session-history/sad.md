@@ -160,7 +160,60 @@ sequenceDiagram
     io->>Developer: bell + next phase begins, unaffected either way
 ```
 
-**Critical flow 2: A write failure never breaks the timer** — <N/A, folded into Flow 1's `alt` — the spec's own AC-03 is "the failure is silently absorbed, the countdown continues normally," which is exactly the branch Flow 1 already shows; a second diagram would just repeat it. The `sequences` stage covers this as its own explicit branch per §5 AC.>
+**Critical flow 2: A history-write failure never breaks the timer**
+
+```mermaid
+sequenceDiagram
+    participant <service>
+    participant <data-store>
+    Note over <service>: precondition — developer has opted in; a phase has just completed naturally
+    <service>->><data-store>: ensure the OS-conventional data directory exists (every call, independently)
+    alt directory ensure fails
+        Note over <service>: failure silently absorbed — no record attempted, never thrown (AC-03)
+    else directory ensure succeeds
+        <service>->><data-store>: append one JSON record for the completed phase
+        alt append fails
+            Note over <service>: failure silently absorbed — never thrown, never surfaced to the developer (AC-03)
+        else append succeeds
+            Note over <service>,<data-store>: persists completed-phase record {phase, round, completedAt}
+        end
+    end
+    Note over <service>: the countdown continues unaffected either way — the next completed phase independently attempts its own write regardless of this outcome
+```
+
+**Critical flow 3: An interrupted phase is never recorded**
+
+```mermaid
+sequenceDiagram
+    participant <client>
+    participant <service>
+    Note over <service>: precondition — developer has opted in; a phase is mid-countdown
+    <client>->><service>: sends an interrupt (Ctrl+C) or terminate/hang-up signal before the countdown reaches zero
+    <service>->><service>: exits immediately per the project's existing signal handling — no phase-change transition is ever produced for this phase
+    Note over <service>: the history-write step is never reached for this phase — no record exists, regardless of how late the interruption occurs (AC-04)
+    <service>->><client>: process exits, code 0
+```
+
+**Coverage check (§4 user stories → flow, §5 ACs → flow/branch/N/A):**
+
+| US / AC | Covered by |
+|---|---|
+| US-01 Turn session history on | Flow 1 (`isHistoryEnabled()` branch) |
+| US-02 See completed phases recorded | Flow 1 (happy path) |
+| US-03 Keep default behavior unchanged | Flow 1 (`else not opted in` branch) |
+| US-04 Find history in a predictable place | N/A — not a distinct runtime path; see AC-05 below |
+| US-05 Keep interrupted sessions out of my history | Flow 3 |
+| US-06 Never let logging break my timer | Flow 2 |
+| AC-01 (US-01, US-02) happy path | Flow 1 |
+| AC-02 (US-03) happy path | Flow 1 (`else not opted in`) |
+| AC-03 (US-06) error | Flow 2 (both `alt` branches) |
+| AC-04 (US-05) domain invariant | Flow 3 |
+| AC-05 (US-04) cross-context | **N/A, non-runtime** — OS-conventional path resolution is a pure-function branch on `process.platform` inside `history/paths.ts`; every OS produces the same message shape in Flow 1/2, differing only in the literal path value, so it carries no distinct sequence to draw. |
+| AC-06 (US-01) authorization | Flow 1 (`isHistoryEnabled()` branch) |
+
+No §4 user story or §5 AC is left uncovered.
+
+**Flagged for design/data-model:** none — Flow 2/3 introduce no participant beyond `<service>`/`<data-store>`/`<client>`, all already implied by §5's `history`/filesystem boundary; no new ADR-worthy decision surfaced during this pass.
 
 ## 7. Deployment view
 
