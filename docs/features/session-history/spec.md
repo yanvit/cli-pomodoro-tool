@@ -2,7 +2,7 @@
 status: Draft
 owner: "Vitalii"
 reviewers: ["Vitalii"]
-updated_at: "2026-10-01"
+updated_at: "2026-10-06"
 feature_size: "S"
 ---
 
@@ -15,9 +15,9 @@ feature_size: "S"
 
 `pomodoro` runs its 25/5/15 work/break cycle entirely in memory — the moment the process exits, every trace of the session is gone. A developer (CONTEXT glossary) who wants to know how many pomodoros they actually finished today, or over the past week, has no way to find out short of manually tallying as they go; the tool itself keeps nothing.
 
-Session history is one of three v1 exclusions the owner deliberately reopened for v2 via a grilling session (`docs/roadmap.md` §Decisions so far) — pause/resume (step 4) already shipped; this is the last of the three (the roadmap's execution path orders it after step 5, durations, in wave 4).
+Session history is one of three v1 exclusions the owner deliberately reopened for v2 via a grilling session (`docs/roadmap.md` §Decisions so far) — pause/resume (step 4) is spec'd, not yet shipped (no implementation exists in `src/` yet); this is the last of the three (the roadmap's execution path orders it after step 5, durations, in wave 4). AC-01 below is written against `core`'s single "phase completed naturally" signal, not against pause/resume's internals, so this feature needs no rework once pause/resume actually ships — whatever triggers that signal (an immediate countdown-to-zero today, or a resume-triggered deferred flush later) is already covered.
 
-The committed approach: when a developer opts in via an environment variable, `pomodoro` appends one record to a log file in the platform's conventional per-user data location every time a work or break phase's countdown reaches zero naturally. Nothing else changes — bare `pomodoro` (no opt-in) is byte-for-byte identical to the tool without this feature. The storage format and the exact OS-specific paths are already settled by the roadmap's own grilling session (`docs/roadmap.md` §Decisions so far — "append-only... rather than a bare dotfile", with the Linux/macOS paths named) — this spec does not re-decide them, only the behavior around them.
+The committed approach: when a developer opts in via an environment variable, `pomodoro` appends one record to a log file in the platform's conventional per-user data location every time a work or break phase's countdown reaches zero naturally. Nothing else changes — bare `pomodoro` (no opt-in) is byte-for-byte identical to the tool without this feature. The storage format and the exact OS-specific paths are settled by the roadmap's own grilling session (`docs/roadmap.md` §Decisions so far — "append-only... rather than a bare dotfile", with the Linux/macOS/Windows paths named — Windows's own per-user data folder, `%LOCALAPPDATA%\pomodoro-timer\`, is this spec's addition, kept in sync with the roadmap) — this spec does not re-decide them, only the behavior around them.
 
 **Decision narrowing (resolved with the owner, during this spec's interview):** the idea-capture step's framing considered recording whether a phase was "interrupted" as well as completed. This spec narrows that to completed-only: a phase that doesn't run to natural completion — Ctrl+C, a terminate/hang-up signal, or a hard kill — produces no record at all, for any reason. The deciding factor: some of those exit paths (a hard kill, a torn-down process group) can't run any code at all, so no mechanism could ever promise to capture them; treating every non-completion uniformly (never attempt to record it) is a simpler, more honest contract than partial coverage with an inconsistent edge no developer could predict.
 
@@ -80,7 +80,7 @@ The committed approach: when a developer opts in via an environment variable, `p
 
 **Given** a developer has set the opt-in environment variable before running `pomodoro`
 **When** a work or break phase's countdown reaches zero naturally (including a deferred transition flushed on resume)
-**Then** the system appends one record for that completed phase to the developer's history, identifying at least which phase it was, which round, and when it completed
+**Then** the system synchronously appends one record for that completed phase to the developer's history — the append completes, or fails per AC-03, before the next phase's countdown begins — identifying exactly three things: which phase it was, which round, and an ISO-8601 UTC timestamp of when it completed; no additional fields
 
 ### AC-02 (US-03) — happy path
 
@@ -90,9 +90,9 @@ The committed approach: when a developer opts in via an environment variable, `p
 
 ### AC-03 (US-06) — error
 
-**Given** a developer has opted in, but the history location can't be written to (e.g. it doesn't exist or isn't writable)
+**Given** a developer has opted in
 **When** a phase completes and the system attempts to append a record
-**Then** the write failure is silently absorbed and the countdown continues normally — the developer's timer is never interrupted, delayed, or crashed by a history-write problem
+**Then** the system first ensures the conventional per-user data location exists, creating it if absent, independently on every completed phase; only if the write still can't succeed after that (e.g. a permissions problem, a full disk) is the failure silently absorbed and the countdown continues normally — the developer's timer is never interrupted, delayed, or crashed by a history-write problem, and the next completed phase independently attempts its own write regardless of whether this one failed
 
 ### AC-04 (US-05) — domain invariant
 
@@ -110,13 +110,13 @@ The committed approach: when a developer opts in via an environment variable, `p
 
 **Given** a developer has not set the opt-in environment variable in their own shell session
 **When** they run `pomodoro`
-**Then** nothing set by another process, another user, or a previously-started shell session can cause their run to be logged — only the environment this specific invocation reads at its own startup decides whether history is written for it
+**Then** only the environment this specific invocation reads at its own startup decides whether history is written for it — no history is written for this run
 
 ## 6. Non-functional requirements
 
 | Aspect | Target | Measurement |
 |---|---|---|
-| History-write added latency | ≤ 5ms added to the existing phase-transition write path | unit test timing the write call against a fake file-system double |
+| History-write added latency | ≤ 5ms added to the existing phase-transition write path, measured as real wall-clock time for the synchronous append (the countdown waits for this write — see AC-01/AC-03) | integration test timing the write call against a real temp-file write, not a fake double |
 | Write-failure isolation | 100% of simulated write failures leave the countdown running, unaffected | unit test simulating a failing write, asserting ticks continue uninterrupted |
 | Dependency footprint | 0 new runtime dependencies | `package.json` `dependencies` stays absent/empty |
 
@@ -130,6 +130,7 @@ The committed approach: when a developer opts in via an environment variable, `p
   - The history file grows indefinitely over long-term use, becoming a disk-space or stale-data concern: business response — accepted as a known limitation (§3 non-goal: no rotation); the developer can delete the file themselves at any time, and the tool never reads or depends on it.
   - A write-failure path accidentally crashes the tool or leaks an internal error to the developer: business response — explicitly prevented by AC-03; failures are isolated and never surface as an error.
 - **Security review:** N/A — no network surface, no new permission boundary; purely local file I/O under the developer's own OS-level file permissions.
+- **Definition of Done note:** documenting the opt-in variable's name/value and the history file's conventional location in `README.md` is part of this feature's Definition of Done — a docs deliverable, not a separately-tested acceptance criterion, since it's documentation rather than runtime behavior.
 
 ## 7. Metrics / KPIs
 
@@ -139,5 +140,5 @@ The committed approach: when a developer opts in via an environment variable, `p
 
 ## 8. Open questions
 
-- [ ] Exact environment-variable name isn't pinned down yet (the storage format and OS-specific paths are already settled — see §1's traceability note, `docs/roadmap.md` §Decisions so far). Default now: `POMODORO_HISTORY=1` as the toggle name/value. — owner: Vitalii, due: before `sdd:design session-history`.
+- [ ] Exact environment-variable name, AND its value semantics (presence-only vs. an exact value vs. truthy-string matching), aren't pinned down yet (the storage format and OS-specific paths — including Windows — are already settled, see §1's traceability note and `docs/roadmap.md` §Decisions so far). Default now: `POMODORO_HISTORY=1` as the toggle name/value, read as an exact match — only the literal value `1` opts in; unset, empty, or any other value (including `0`) does not. — owner: Vitalii, due: before `sdd:design session-history`.
 - [ ] Should AC-03's "silently absorbed" write failure leave any trace at all (even a debug/verbose-only one), or stay fully silent forever, in every mode? Default now: fully silent, no trace, ever — consistent with the project's zero-friction philosophy. — owner: Vitalii, due: before `sdd:design session-history`.
