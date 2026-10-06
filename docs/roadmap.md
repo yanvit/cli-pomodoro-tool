@@ -1,6 +1,6 @@
 ---
 status: living
-updated_at: "2026-10-01"
+updated_at: "2026-10-06"
 ---
 
 # Roadmap — cli-pomodoro-timer
@@ -24,7 +24,7 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 | 3 | Harden for distribution: `io/timer.ts` smoke test, README, npm packaging metadata, D2 resolution | this conversation | XS | shipped |
 | 4 | [Pause/resume the countdown with spacebar](features/pause-resume/spec.md) | `docs/roadmap.md §Decisions so far` (grilled) | S | spec'd |
 | 5 | Override work/break durations via CLI flags — bare `pomodoro` unchanged | `docs/roadmap.md §Decisions so far` (grilled) | S | idea |
-| 6 | Opt-in session history — append-only JSONL at the platform's data dir | `docs/roadmap.md §Decisions so far` (grilled) | M | idea |
+| 6 | [Opt-in session history via an env-var toggle](features/session-history/spec.md) | `docs/roadmap.md §Decisions so far` (grilled) | S | shipped |
 
 ## Not yet specified
 
@@ -51,7 +51,7 @@ Running `pomodoro` in a terminal walks you through the classic 25/5/15 work/brea
 - Minimal single-command timer: fixed 25/5/15 cycle, bell+text alert, no persistence → [`docs/idea-brief.md §7`](idea-brief.md)
 - **D2 resolved:** the bell (`\x07`) is a raw control character, not an ANSI sequence — it works on every Windows terminal host including legacy `cmd.exe`, so no fallback is needed there. The actual portability risk is the dashboard's ANSI color/cursor-control escapes garbling on legacy conhost without VT processing enabled; resolved by documenting it in `README.md` rather than adding platform-detection code, consistent with this project's minimalism (the user base is Mac/Linux-primary per `idea-brief.md §3`).
 - **D1 resolved — permanently closed, not deferred:** no v2 accountability/Do-Not-Disturb mechanism will be built. Grilled: chose to keep the tool a pure clock+bell rather than add enforcement. Reinforced by research showing no stable public API exists for toggling Focus/DND on macOS, Windows, or Linux — every known path is an unofficial workaround requiring manual one-time setup (e.g. a hand-built macOS Shortcut) and OS permission grants, and has broken across past OS updates. "Do-Not-Disturb / attention enforcement" in Out of scope below is now a permanent exclusion, not a v1-only deferral.
-- **v2 scope reopened:** pause/resume, configurable durations, and session history — three of the six original v1 exclusions — are back in scope as steps 4-6 above, all strictly additive/opt-in (bare `pomodoro`'s default **output** stays identical to today — no new flags, no new printed behavior unless a new capability is actually invoked; this does not promise the input-handling footprint is zero — see `docs/features/pause-resume/spec.md` §1 for the scoped exception pause/resume needed). Settled by grilling + two AFK lookups: pause/resume uses `node:readline`'s `emitKeypressEvents` + raw mode (built in, no new dependency); durations are CLI flags only, no config file; history is append-only JSONL at the OS's conventional data dir (`$XDG_DATA_HOME`/`~/.local/share/pomodoro-timer/` on Linux, `~/Library/Application Support/pomodoro-timer/` on macOS) rather than a bare dotfile. → [Steps](#steps) rows 4-6
+- **v2 scope reopened:** pause/resume, configurable durations, and session history — three of the six original v1 exclusions — are back in scope as steps 4-6 above, all strictly additive/opt-in (bare `pomodoro`'s default **output** stays identical to today — no new flags, no new printed behavior unless a new capability is actually invoked; this does not promise the input-handling footprint is zero — see `docs/features/pause-resume/spec.md` §1 for the scoped exception pause/resume needed). Settled by grilling + two AFK lookups: pause/resume uses `node:readline`'s `emitKeypressEvents` + raw mode (built in, no new dependency); durations are CLI flags only, no config file; history is append-only JSONL at the OS's conventional data dir (`$XDG_DATA_HOME`/`~/.local/share/pomodoro-timer/` on Linux, `~/Library/Application Support/pomodoro-timer/` on macOS, `%LOCALAPPDATA%\pomodoro-timer\` on Windows — added during `sdd:clarify session-history`, 2026-10-06, to close a gap where AC-05 implied Windows support with no path settled) rather than a bare dotfile. → [Steps](#steps) rows 4-6
 
 ## Dependency graph
 
@@ -77,3 +77,4 @@ flowchart LR
 | 2 · Build the timer | 2026-09-30 | `9251e83` |
 | 2 · Dashboard UI polish (big-digit countdown, anti-scroll fix, non-TTY/narrow-terminal degradation, warm color shift) | 2026-09-30 | `686e7f3`, `de897ef`, `85444bb`, `e80e9d5` |
 | 3 · Harden for distribution | 2026-10-01 | `f89a258` |
+| 6 · Opt-in session history via an env-var toggle | 2026-10-06 | [changelog](features/session-history/changelog.md), PR (pending) |

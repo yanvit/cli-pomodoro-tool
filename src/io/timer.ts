@@ -1,4 +1,5 @@
 import { initialState, tick, type CycleState } from "../core/cycle.js";
+import { recordCompletedPhase } from "../history/record.js";
 import { renderCompactLine } from "./compactLine.js";
 import { phaseColorAnsi } from "./phaseColor.js";
 import { formatTime, PHASE_LABEL, renderFrame } from "./render.js";
@@ -57,8 +58,13 @@ export function startTimer(): void {
   }
 
   const interval = setInterval(() => {
+    const completedRound = state.round;
     const transition = tick(state);
     state = transition.state;
+
+    if (transition.type === "phase-change") {
+      recordCompletedPhase(transition.from, completedRound);
+    }
 
     if (mode === "dashboard") {
       drawDashboard(state);

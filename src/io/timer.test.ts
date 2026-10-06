@@ -1,19 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../history/record.js", () => ({
+  recordCompletedPhase: vi.fn(),
+}));
+
 import { startTimer } from "./timer.js";
+import { recordCompletedPhase } from "../history/record.js";
+
+const recordCompletedPhaseMock = vi.mocked(recordCompletedPhase);
 
 describe("startTimer smoke test", () => {
   let writeSpy: ReturnType<typeof vi.spyOn>;
   let isTTYOriginal: boolean | undefined;
+  let exitSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     isTTYOriginal = process.stdout.isTTY;
     process.stdout.isTTY = false;
     writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+    recordCompletedPhaseMock.mockClear();
   });
 
   afterEach(() => {
     writeSpy.mockRestore();
+    exitSpy.mockRestore();
     process.stdout.isTTY = isTTYOriginal;
     vi.useRealTimers();
   });
@@ -24,5 +36,33 @@ describe("startTimer smoke test", () => {
 
     writeSpy.mockClear();
     expect(() => vi.advanceTimersByTime(1000)).not.toThrow();
+  });
+
+  it("calls recordCompletedPhase with the completed phase and its pre-tick round on a natural phase-change", () => {
+    startTimer();
+
+    vi.advanceTimersByTime(25 * 60 * 1000);
+
+    expect(recordCompletedPhaseMock).toHaveBeenCalledTimes(1);
+    expect(recordCompletedPhaseMock).toHaveBeenCalledWith("work", 1);
+  });
+
+  it("calls recordCompletedPhase with the pre-tick round on the short_break→work edge, where pre/post round differ", () => {
+    startTimer();
+
+    vi.advanceTimersByTime(25 * 60 * 1000); // work (round 1) -> short_break (round 1)
+    vi.advanceTimersByTime(5 * 60 * 1000); // short_break (round 1) -> work (round 2)
+
+    expect(recordCompletedPhaseMock).toHaveBeenCalledTimes(2);
+    expect(recordCompletedPhaseMock).toHaveBeenNthCalledWith(2, "short_break", 1);
+  });
+
+  it("never calls recordCompletedPhase when SIGINT fires mid-countdown", () => {
+    startTimer();
+
+    vi.advanceTimersByTime(10 * 1000);
+    process.emit("SIGINT");
+
+    expect(recordCompletedPhaseMock).not.toHaveBeenCalled();
   });
 });

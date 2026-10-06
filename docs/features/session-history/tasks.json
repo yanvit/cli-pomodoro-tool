@@ -1,0 +1,121 @@
+{
+  "slug": "session-history",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Implement OS-conventional history-directory resolution",
+      "layer": "infra",
+      "deps": [],
+      "acs": ["AC-05"],
+      "dod": "paths.test.ts covers all three process.platform branches with controlled env vars and resolveHistoryDir() has no side effects",
+      "files_hint": ["src/history/paths.ts", "src/history/paths.test.ts"],
+      "file": "docs/features/session-history/tasks/implement-history-path-resolution.md"
+    },
+    {
+      "id": "T2",
+      "title": "Implement opt-in gate + isolated append-only writer",
+      "layer": "infra",
+      "deps": ["T1"],
+      "acs": ["AC-01", "AC-03", "AC-06"],
+      "dod": "record.test.ts passes: happy path, opt-out no-op, and both mkdir/append failure-isolation cases, with no exception ever observable to the caller",
+      "files_hint": ["src/history/record.ts", "src/history/record.test.ts"],
+      "file": "docs/features/session-history/tasks/implement-history-writer.md"
+    },
+    {
+      "id": "T3",
+      "title": "Wire completed-phase recording into io/timer.ts",
+      "layer": "wiring",
+      "deps": ["T2"],
+      "acs": ["AC-01", "AC-02", "AC-04"],
+      "dod": "timer.test.ts asserts recordCompletedPhase is called with the correct (phase, round) on a natural phase-change and never on SIGINT, and git diff shows zero changes to cli.ts/core/cycle.ts",
+      "files_hint": ["src/io/timer.ts", "src/io/timer.test.ts"],
+      "file": "docs/features/session-history/tasks/wire-history-into-timer.md"
+    },
+    {
+      "id": "T4",
+      "title": "Integration-test latency and full-cycle default-behavior guarantees",
+      "layer": "tests",
+      "deps": ["T3"],
+      "acs": ["AC-01", "AC-02", "AC-03"],
+      "dod": "three integration tests pass against real temp-file I/O (no fake double): latency <=5ms, zero-footprint default, write-failure isolation",
+      "files_hint": ["src/io/timer.test.ts", "src/history/record.test.ts"],
+      "file": "docs/features/session-history/tasks/integration-test-reliability-and-latency.md"
+    },
+    {
+      "id": "T5",
+      "title": "Document the opt-in variable and history file location in README",
+      "layer": "docs",
+      "deps": ["T3"],
+      "acs": [],
+      "dod": "README names the exact env var, its exact opt-in value, and all three OS paths, sufficient on its own to opt in and find the file",
+      "files_hint": ["README.md"],
+      "file": "docs/features/session-history/tasks/document-opt-in-in-readme.md"
+    },
+    {
+      "id": "T6",
+      "title": "Strengthen AC-01 round-capture test to discriminate pre/post-tick round",
+      "layer": "tests",
+      "deps": ["T3"],
+      "acs": ["AC-01"],
+      "dod": "timer.test.ts asserts recordCompletedPhase is called with (\"short_break\", 1) on the short_break→work edge, where pre-tick and post-tick round differ — a test that fails if the capture moves after the tick",
+      "files_hint": ["src/io/timer.test.ts"],
+      "file": "docs/features/session-history/tasks/strengthen-round-capture-test.md",
+      "origin": "review-2026-10-06#1"
+    },
+    {
+      "id": "T7",
+      "title": "Add real-filesystem integration test through the timer call site",
+      "layer": "tests",
+      "deps": ["T3"],
+      "acs": ["AC-01"],
+      "dod": "a timer.integration.test.ts case opts in, runs startTimer() through two real phase-changes against a real temp dir, and asserts the real history.jsonl file contains exactly the expected {phase, round} lines",
+      "files_hint": ["src/io/timer.integration.test.ts"],
+      "file": "docs/features/session-history/tasks/add-timer-integration-write-test.md",
+      "origin": "review-2026-10-06#2"
+    },
+    {
+      "id": "T8",
+      "title": "Update CLAUDE.md to document the history module and reflect shipped persistence",
+      "layer": "docs",
+      "deps": ["T3"],
+      "acs": [],
+      "dod": "CLAUDE.md module structure lists src/history/, the Persistence convention line reflects the opt-in append-only writer, and a routing rule points history/persistence logic at src/history/",
+      "files_hint": ["CLAUDE.md"],
+      "file": "docs/features/session-history/tasks/update-claude-md-persistence.md",
+      "origin": "review-2026-10-06#3"
+    },
+    {
+      "id": "T9",
+      "title": "Name the history file and its format in README",
+      "layer": "docs",
+      "deps": ["T5"],
+      "acs": [],
+      "dod": "README's Session history section names history.jsonl and its one-JSON-object-per-line format, sufficient on its own to find and read the file",
+      "files_hint": ["README.md"],
+      "file": "docs/features/session-history/tasks/name-history-file-in-readme.md",
+      "origin": "review-2026-10-06#4"
+    },
+    {
+      "id": "T10",
+      "title": "Guard against relative-path cwd leak when HOME/XDG_DATA_HOME/LOCALAPPDATA are unset",
+      "layer": "infra",
+      "deps": ["T1", "T2"],
+      "acs": ["AC-05", "AC-03"],
+      "dod": "record.ts no-ops before any fs call when resolveHistoryDir() returns a non-absolute path; paths.test.ts/record.test.ts/record.integration.test.ts pin the fix by mutation",
+      "files_hint": ["src/history/record.ts", "src/history/paths.test.ts", "src/history/record.test.ts", "src/history/record.integration.test.ts"],
+      "file": "docs/features/session-history/tasks/guard-relative-path-cwd-leak.md",
+      "origin": "review-2026-10-06#round2-1"
+    },
+    {
+      "id": "T11",
+      "title": "Close round-2 review doc findings",
+      "layer": "docs",
+      "deps": ["T3"],
+      "acs": [],
+      "dod": "sad.md §11, architecture-map.md, spec.md §8, sad.md §6 Flows 2/3, and data-model.md owner/fixture all corrected with no residual contradictions",
+      "files_hint": ["docs/features/session-history/sad.md", "docs/architecture-map.md", "docs/features/session-history/spec.md", "docs/features/session-history/data-model.md"],
+      "file": "docs/features/session-history/tasks/close-round-2-doc-findings.md",
+      "origin": "review-2026-10-06#round2-2,3,4,6,7"
+    }
+  ]
+}
