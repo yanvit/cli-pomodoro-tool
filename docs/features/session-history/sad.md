@@ -4,7 +4,7 @@ owner: "Vitalii"
 reviewers: ["Vitalii"]
 updated_at: "2026-10-06"
 feature_size: "S"
-target_surfaces: []  # filled in §4 — subset of: backend-service | web-frontend | mobile-app | desktop-app | cli | worker | library-sdk. Read (never re-derived) by api/sequences/tasks/plan-tests/review → _shared/surfaces.md
+target_surfaces: [cli]
 ---
 
 # Software Architecture Document — session-history
@@ -15,291 +15,207 @@ target_surfaces: []  # filled in §4 — subset of: backend-service | web-fronte
 
 ## 1. Introduction and goals
 
-<!-- 🎯 Why: durable memory of «what + the three dominant qualities + who cares». A year from
-     now nobody recalls which three qualities were critical for this system.
-     📋 Write: 1 ¶ intent + 3 lines of top-3 quality goals + a stakeholders table.
-     ¶4 is the override slot — critic `Override` resolutions emit «Decision override: <headline>
-     — rationale: <reason>» bullets here so downstream skills see the deliberate choice. -->
-
-**Intent.** <One paragraph from spec §2 Goals — what we're building and for whom.>
+**Intent.** Let a developer opt into an append-only record of their own completed work/break phases with a single environment-variable toggle — no code change, no config file, no install step — so they can later tally how many pomodoros they actually finished, while anyone who doesn't opt in sees zero difference from today's tool (spec §2 Goals).
 
 **Top-3 quality goals (1-liners; full scenarios in §10):**
 
-1. <e.g. "Availability under partial failure of a downstream module">
-2. <e.g. "Read performance for the dashboard under data-scale growth">
-3. <e.g. "Recoverability with <30 min RTO">
+1. Zero-footprint default — bare `pomodoro` (no opt-in) stays byte-for-byte identical in output and behavior.
+2. Timer-never-breaks reliability — a history-write failure never crashes, hangs, or delays the countdown.
+3. Cross-platform path correctness — the same developer gets a consistent, OS-conventional location on a given machine.
 
 **Stakeholders.**
 
 | Role | Interest | Sign-off owner? |
 |---|---|---|
-| <author role from glossary> | <feature usage> | No |
-| <consumer role from glossary> | <read usage> | No |
-| Tech Lead | SAD approval | Yes |
+| developer (CONTEXT glossary) | the person running `pomodoro`, optionally opting into history | No |
+| Vitalii (owner, solo maintainer) | SAD approval | Yes |
 
-<!-- Decision overrides (¶4) — populated by the critic resolution loop, empty otherwise. -->
+<!-- Decision overrides (¶4) — none this pass; the two spec §8 open questions are resolved by
+adopting the spec's own stated defaults (see §4 item 4 and §11), not by override. -->
 
 ## 2. Constraints
 
-<!-- 🎯 Why: §4 strategy only works when §2 has fixed WHAT IS ALREADY FIXED — stack, versions,
-     deadline, regulatory. This is an input, not an output.
-     📋 Write: four blocks — Technical / Organisational / Conventions / Regulatory.
-     📌 Pin versions («<datastore> 18», not «<datastore>»); «Q3 deadline — hard», not «ideally».
-     Never N/A — every feature inherits at least Conventions + Technical. -->
-
 **Technical.**
-- <Language + version>
-- <Framework(s) + version>
-- <Datastore(s) + version>
-- <Architecture convention — e.g. the layering style from the project convention file>
+- TypeScript on Node.js (>=18 LTS) — unchanged.
+- No framework (`docs/adr/0001-use-nodejs-typescript-with-no-framework-or-datastore.md`) — unchanged. That ADR's "no datastore" framing is narrowly revisited by this feature (a flat append-only file is not a datastore in the sense ADR-0001 excluded — no query engine, no schema migration — but it is persistence, which `docs/architecture-map.md` §Constraints also named; **ADR-0001 (this feature)** records why a new `history` module, not a bolt-on, is the right shape).
+- Zero new runtime dependencies (spec §6 NFR row 3) — forces hand-rolled OS-conventional path resolution (no `env-paths`-style package) and Node's built-in `fs.mkdirSync`/`fs.appendFileSync`, not a library.
+- Module wiring: direct function calls, no DI container (`docs/adr/0002-thin-cli-core-io-module-split.md`) — unchanged; this feature's `history` module is called directly from `io`, same pattern as `io` calling into `core`.
+- Layering: `cli` (entry point, argv) composes `core` + `io` directly; `core` stays pure, zero I/O, zero changes this feature. This feature adds a third module, `history`, called only from `io` — see **ADR-0001**.
 
 **Organisational.**
-- <Effort budget — e.g. 3 person-weeks>
-- <Deadline — e.g. 2026-Q3 hard>
-- <Team composition>
+- Effort budget: S (`docs/features/session-history/.size`) — ≤1 week.
+- No hard deadline — personal project (`docs/idea-brief.md` §4).
+- Team: solo (Vitalii).
 
 **Conventions.**
-- <Link to the project's convention file>
-- <Naming, ID strategy, error-handling pattern>
+- `CLAUDE.md` + `docs/architecture-map.md` — error-handling convention (uncaught → stderr + nonzero exit; SIGINT → immediate exit 0), test convention (`core` unit-tested with a fake clock, `io` gets a thin smoke test only).
+- Existing file-splitting pattern in `src/io/` (`render.ts`, `renderMode.ts`, `compactLine.ts`, `phaseColor.ts` — small, single-purpose helpers) — this feature's `history` module follows the same shape (`paths.ts`, `record.ts`), one level up as its own top-level module rather than nested under `io/`, per **ADR-0001**.
 
 **Regulatory / external.**
-- <e.g. data-retention / deletion behaviour per ADR-NNNN>
-- <e.g. applicable compliance controls, or N/A with a reason>
+- N/A — no network surface, no new permission boundary beyond the developer's own OS-level file permissions (spec §6.1 Security review verdict: N/A).
 
 ## 3. Context and scope
 
-<!-- 🎯 Why: draws the SYSTEM BOUNDARY — who talks to it from outside, where the trust zone ends.
-     Without §3, §5 and §8 (authorization) blur — unclear what's «inside» vs «outside».
-     📋 Write: 2–3 sentences of business context + an external-systems table + a C4Context block.
-     📌 «External: none (deliberate, no third-party in v1)» is itself a decision worth stating.
-     Trust boundary — the line past which you don't trust data without checking it.
-     Never N/A — greenfield still draws the planned actors + external systems. -->
+`pomodoro` remains a single-process CLI the developer runs directly in their own terminal — still one developer, one terminal, one process. This feature adds exactly one new boundary: the local filesystem's OS-conventional per-user data directory, which the process writes to but does not read from, and which can fail independently of the developer's actions (permissions, a full disk, a missing directory) — a fallible external resource, not a remote system.
 
-<Business context in 2–3 sentences. What the system does for whom.>
-
-<!-- brownfield: <one-line scan summary> (or «N/A — greenfield repo» if no source existed) -->
+<!-- brownfield: real scan confirms `src/cli.ts` → `startTimer()` (`src/io/timer.ts`) → `src/core/cycle.ts`'s pure `tick()`; the `setInterval` callback in `timer.ts` already branches on `transition.type === "phase-change"` to fire the bell — that branch IS the "phase completed naturally" signal AC-01 needs. Zero runtime deps today; zero persistence; `io` test convention is `vi.useFakeTimers()` + `vi.spyOn(process.stdout.write)` smoke tests (confirmed in `src/io/timer.test.ts`). -->
 
 **External systems (in / out):**
 
 | Actor or system | Type | Interaction |
 |---|---|---|
-| <author role> | Person | <what they do> |
-| <external service> | System (internal/external) | <interaction> |
-| <identity provider> | System (external) | <provides auth tokens> |
+| developer | Person | runs `pomodoro`, optionally sets `POMODORO_HISTORY=1` before running |
+| Local filesystem (OS per-user data dir) | System (external to the process, internal to the developer's own machine) | written to, opt-in only; never read by `pomodoro` itself (spec §3 non-goal) |
 
-**C4 Context (L1):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. -->
+**C4 Context (L1):**
 
 ```mermaid
 C4Context
-    title <feature> — System Context
+    title session-history — System Context
 
-    Person(actor, "<Actor role>", "<intent>")
-    System(app, "<Our system>", "<one-sentence description>")
-    System_Ext(ext, "<External system>", "<one-sentence description>")
+    Person(developer, "Developer", "runs pomodoro; optionally sets POMODORO_HISTORY=1 before running")
 
-    Rel(actor, app, "<interaction>", "<protocol>")
-    Rel(app, ext, "<interaction>", "<protocol>")
+    System(app, "pomodoro CLI", "single-process Node.js CLI Pomodoro timer")
+    System_Ext(fs, "Local filesystem", "the OS's own per-user data directory — never a third-party service")
+
+    Rel(developer, app, "starts, sets the opt-in env var", "terminal stdin/env")
+    Rel(app, fs, "appends one record per completed phase, opt-in only", "fs.appendFileSync")
 ```
 
 ## 4. Solution strategy
 
-<!-- 🎯 Why: the 3–4 STRATEGIC PILLARS every ADR grows from. Without §4 each ADR looks random —
-     there's no umbrella. ⭐ The densest section — the blast-radius gate fires almost always here
-     (decisions are irreversible + multi-module).
-     📋 Write: 3–4 choices; each a heading + 2–3 sentences of rationale.
-     📌 «Store content as a table of typed blocks» is a pillar — ADR-0001 grows from it. -->
-
 **Top strategic choices (the seeds for ADRs):**
 
-1. **<e.g. Module isolation through events>** — <2–3 sentences citing quality goals + constraints>.
-2. **<e.g. Single-store persistence>** — <2–3 sentences>.
-3. **<e.g. Server-rendered read side>** — <2–3 sentences>.
-
-Each tactical decision in later sections should trace to one of these seeds. Tactical decisions that *contradict* a strategic choice are red flags — surface them in §11.
+1. **Target surface: `cli` (existing, unchanged)** — this feature extends the project's one and only surface; no new container or process. Derived from spec §1 "for whom" (the `developer` role) + the project having exactly one deployable. Blast-radius: 0-of-3 (not irreversible, not multi-module beyond the existing single surface, no legitimate alternative — the entire project *is* this CLI) → inline, no ADR. `target_surfaces: [cli]` written to frontmatter.
+2. **A new `src/history/` module, called directly from `io` on every phase-change** — `io/timer.ts`'s existing `setInterval` callback, right where it already detects `transition.type === "phase-change"` to fire the bell, also calls `history.recordCompletedPhase(phase, round)` synchronously. `core/cycle.ts` and `cli.ts` are both completely untouched — the strongest possible proof that bare `pomodoro` stays byte-for-byte identical (AC-02). This is the one genuine blast-radius decision this pass (irreversible-ish: reversing later means moving files and re-wiring tests; multi-module: touches `io` + a new module + formally revisits ADR-0001/0002's "no persistence" framing per `docs/architecture-map.md` §Constraints; has legitimate alternatives: folding the logic into `io/timer.ts` directly, or having `cli.ts` inject a writer into `io` à la dependency injection) — confirmed with the owner, recorded as **ADR-0001**.
+3. **Write mechanism: synchronous `fs.mkdirSync`(recursive) + `fs.appendFileSync`, each independently wrapped in try/catch** — forced by spec §6 NFR's "0 new runtime dependencies" (rules out a path-resolution library) and AC-01's "the append completes... before the next phase's countdown begins" (rules out an async/fire-and-forget write). No legitimate alternative survives both constraints at once → inline, no ADR.
+4. **Opt-in toggle: `POMODORO_HISTORY=1`, exact-match, read once at process startup** — adopts the default spec.md §8 already proposed ("owner: Vitalii, due: before `sdd:design session-history`" — this design pass is that due point). Unset, empty, or any value other than the literal `1` leaves history off (AC-06). Write-failure handling stays fully silent, no trace, ever — the spec's own stated default for its second §8 open question. Both are convention-level, reversible (an env-var name/semantics change is a one-line `paths.ts`/`record.ts` edit, not a rewrite) → inline, no ADR; recorded as resolved in §11 rather than left open.
 
 ## 5. Building block view
 
-<!-- 🎯 Why: INTERNAL DECOMPOSITION — modules, containers, datastores. The static topology: who
-     may talk to whom. Without §5, §6 (the flows) has no vocabulary of participants.
-     📋 Write: 1 ¶ on the style (layered / hexagonal / clean / event-driven) + a folder tree + a
-     C4Container block.
-     📌 Draw ONE Container per declared `target_surface` (frontmatter): a fullstack
-     [backend-service, web-frontend] = a backend-API container + a web/SPA container; a
-     [backend-service, mobile-app] = the API + the mobile app. The Container(web, …) line below is
-     just one surface's container — swap/add per what was declared in §4. → _shared/surfaces.md
-     📌 e.g. «web app, content API, media worker, datastore, object store, CDN». -->
-
-<One paragraph: layered / hexagonal / clean / event-driven, and why.>
+Unchanged layered style: `cli` (entry, argv) composes `core` (pure domain, zero I/O) and `io` (real-time driver) directly — no DI container. This feature adds a third module, `history`, called only from `io` (never from `cli` or `core`), per ADR-0001.
 
 **Internal decomposition:**
 
 ```
-<e.g. modules/<feature>/>
-├── domain/       <entities + sentinel errors>
-├── app/          <use cases / services>
-├── infra/        <repository + integration impl>
-├── ports/        <handlers, DTOs, error mapping>
-└── wiring        <self-wiring entry point>
+src/
+├── cli.ts              <unchanged — entry point, zero changes this feature>
+├── core/
+│   └── cycle.ts         <unchanged — pure state machine, zero changes this feature>
+├── io/
+│   └── timer.ts          <modified — on transition.type === "phase-change", calls history.recordCompletedPhase() synchronously, alongside the existing bell>
+└── history/
+    ├── paths.ts           <new — resolves the OS-conventional per-user data dir; pure function of process.platform + env (XDG_DATA_HOME / HOME / LOCALAPPDATA), paths already settled by docs/roadmap.md>
+    └── record.ts          <new — isHistoryEnabled() reads POMODORO_HISTORY once; recordCompletedPhase(phase, round) ensures the dir exists (mkdirSync, independently every call) and appends one JSON line {phase, round, completedAt}; both the mkdir and the append are independently try/catch'd — any failure is silently absorbed, never thrown (AC-03)>
 ```
 
-**C4 Container (L2):** <!-- syntax → references/c4-mermaid-syntax.md. Real names, no <placeholder> stubs. ONE Container per declared target_surface (frontmatter); the web container below is one example surface. -->
+**C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title <feature> — Containers
+    title session-history — Containers
 
-    Person(actor, "<Actor>")
+    Person(developer, "Developer")
 
-    Container_Boundary(app, "<Our system>") {
-        Container(web, "<Web/UI>", "<technology>", "<purpose>")
-        Container(api, "<API/handler>", "<technology>", "<purpose>")
-        ContainerDb(db, "<Datastore>", "<technology>", "<purpose>")
+    Container_Boundary(app, "pomodoro CLI") {
+        Container(cli, "cli", "TypeScript (Node.js)", "parses argv, starts the run — unchanged by this feature")
+        Container(core, "core", "TypeScript", "pure work/break state machine — unchanged by this feature")
+        Container(io, "io", "TypeScript (Node.js)", "real-time driver: countdown, render, bell, signals")
+        Container(history, "history", "TypeScript (Node.js)", "opt-in check, OS-path resolution, append-only writer — new this feature")
     }
 
-    System_Ext(ext, "<External>", "<purpose>")
+    System_Ext(fs, "Local filesystem", "OS-conventional per-user data directory")
 
-    Rel(actor, web, "<interaction>", "<protocol>")
-    Rel(web, api, "<calls>")
-    Rel(api, db, "<reads/writes>", "<driver>")
-    Rel(api, ext, "<emits>", "<protocol>")
+    Rel(developer, cli, "invokes the command", "terminal")
+    Rel(cli, core, "starts a cycle")
+    Rel(cli, io, "starts the real-time driver")
+    Rel(io, core, "calls tick()")
+    Rel(io, history, "records a completed phase, on every phase-change transition (opt-in only)")
+    Rel(history, fs, "ensures dir exists, appends one JSON line", "fs.mkdirSync / fs.appendFileSync")
+    Rel(io, developer, "countdown, bell", "stdout")
 ```
 
 ## 6. Runtime view
 
-<!-- 🎯 Why: the RUNTIME FLOW of 1–2 critical scenarios — who talks to whom, when, in what order.
-     Without §6, §5 is just boxes with no life.
-     📋 Write: a Mermaid sequenceDiagram. Participants are names from §5 (don't invent new ones).
-     Messages are semantic («saves a draft»), NO HTTP verbs / paths / status codes — endpoint-level
-     sequences arrive at the `api` stage.
-     📌 e.g. «author → web: composes draft → web → content API: save». Seed the primary flow(s) here;
-     the `sequences` stage then covers every §5 AC (no cap). Never N/A for M+; XS/S keeps ≥1 happy-path flow. -->
-
-**Critical flow 1: <flow name>**
+**Critical flow 1: A completed phase is recorded**
 
 ```mermaid
 sequenceDiagram
-    actor Actor
-    participant Web
-    participant Service
-    participant Store
-    Actor->>Web: <action>
-    Web->>Service: <call>
-    Service->>Store: <write>
-    Store-->>Service: ok
-    Service-->>Web: result
-    Web-->>Actor: confirmation
+    actor Developer
+    participant io
+    participant history
+    Developer->>io: phase countdown reaches zero naturally
+    io->>io: tick() returns a phase-change transition
+    io->>history: recordCompletedPhase(phase, round)
+    history->>history: isHistoryEnabled()? — POMODORO_HISTORY must be exactly "1"
+    alt opted in
+        history->>history: ensure the OS-conventional data dir exists (mkdirSync, every call)
+        history->>history: append one JSON line {phase, round, completedAt}
+        Note over history: any failure here (dir or write) is silently absorbed — never thrown (AC-03)
+    else not opted in
+        history->>history: no-op — no dir created, no file touched (AC-02, AC-06)
+    end
+    io->>Developer: bell + next phase begins, unaffected either way
 ```
 
-**Critical flow 2: <e.g. async event propagation>** — <if applicable, otherwise N/A>.
+**Critical flow 2: A write failure never breaks the timer** — <N/A, folded into Flow 1's `alt` — the spec's own AC-03 is "the failure is silently absorbed, the countdown continues normally," which is exactly the branch Flow 1 already shows; a second diagram would just repeat it. The `sequences` stage covers this as its own explicit branch per §5 AC.>
 
 ## 7. Deployment view
 
-<!-- 🎯 Why: the TOPOLOGY DevOps must know without reading the deploy charts — how many replicas,
-     where the background worker lives, AT WHAT NUMBERS we scale.
-     📋 Write: 2–3 sentences on topology + monitoring + concrete threshold numbers.
-     📌 e.g. «500 authors → partition by quarter» (not «we'll think about scale later»).
-     🎯 N/A allowed for XS/S that reuses an existing deployment unit with no change.
-     Deployment-diagram scaffold → templates/deployment.md. -->
-
-<Topology in 2–3 sentences. Where it runs, replicas, scaling thresholds.>
-
-**Monitoring:**
-- <Metrics — e.g. `<metric_name>`>
-- <Alerts — e.g. «worker lag > 10 min → page on-call»>
-- <Tracing — e.g. spans on the request boundary>
-
-**Scaling thresholds:**
-- <e.g. comfortable in one table up to N rows/year>
-- <e.g. partition by quarter above N rows/year>
-
-<!-- For XS/S with no deployment change: <!-- N/A: reuses existing deployment unit, no infra change --> -->
+<!-- N/A: reuses the existing deployment unit — a locally-run CLI process on the developer's own machine, started via npm link/global install. No infra, no replicas, no new scaling concern; the only new "deployment" fact is a file on the developer's own disk, sized by how long they keep the tool opted in (accepted, spec §3 non-goal: no rotation). -->
 
 ## 8. Crosscutting concepts
 
-<!-- 🎯 Why: CROSS-CUTTING PATTERNS spanning several modules: logging, errors, authorization, ID
-     strategy, events, caching. ⭐ The second-densest section. A pattern inside one module is NOT
-     here; a project-wide convention belongs in the convention file.
-     📋 Write: a table — concept / convention / where defined. One row per concept.
-     📌 e.g. «sortable time-based IDs generated in the app layer» as a default from the convention file. -->
-
 | Concept | Convention | Where defined |
 |---|---|---|
-| Logging | <e.g. structured, fields `module=<name>`> | <convention file §X or here> |
-| Authentication | <e.g. token-based via middleware> | <convention file §X> |
-| Error handling | <e.g. domain sentinel → ports error mapping → JSON> | <convention file §X> |
-| ID strategy | <e.g. sortable time-based ID in the app layer> | <convention file §X> |
-| Internationalisation | <e.g. N/A, single language> | — |
-| Observability | <e.g. tracing on the request boundary> | — |
-| Events | <module-specific patterns, if any> | <here> |
+| Persistence / file I/O | A single new module, `history/`, owns all filesystem access; `core` and `cli` never touch it (ADR-0001) | `src/history/record.ts`, `src/history/paths.ts` |
+| Error handling (history-specific) | Every history write failure is silently absorbed — mkdir and append independently try/catch'd, never surfaced, never crashes the timer (spec AC-03) | `src/history/record.ts` |
+| Error handling (project-wide) | Unchanged — uncaught errors to stderr, nonzero exit; `SIGINT` exits immediately with code 0 | `CLAUDE.md` |
+| ID strategy | N/A — no persisted entity has an id; each record is a timestamped fact, not a referenceable row | — |
+| Internationalisation | N/A — single language, unchanged | — |
+| Observability | N/A — no telemetry, by design (`docs/idea-brief.md` §5); the history file itself is the developer's own artifact, not observability data | — |
+| Inter-module communication | Direct function calls only — `io` calls `history` the same way it calls `core`; no event bus (`docs/adr/0002-thin-cli-core-io-module-split.md`) | `src/io/timer.ts` |
 
 ## 9. Architecture decisions
 
-<!-- 🎯 Why: the REVERSE INDEX onto the adr/ folder. `ls adr/` gives the files; §9 gives the
-     semantics — why they exist, which SAD section they attach to, what status.
-     📋 Write: a 4-column table, one row per ADR. Mixed status is fine.
-     📌 e.g. «0001 | Store content as a table of typed blocks | Accepted | §4». -->
-
 | # | Title | Status | Section |
 |---|---|---|---|
-| <NNNN> | <imperative — e.g. "Use a sliding-window counter for rate limiting"> | Accepted | §<N> |
-| <NNNN> | <imperative — e.g. "Co-locate the worker in the API process"> | Accepted | §<N> |
+| 0001 | Introduce a new history module, called directly from io | Accepted | §4 |
 
-ADR files live under `docs/features/<slug>/adr/NNNN-<title>.md`.
+ADR files live under `docs/features/session-history/adr/NNNN-<title>.md`.
 
 ## 10. Quality requirements
 
-<!-- 🎯 Why: the QUALITY TREE — take a goal from §1 and break it into concrete leaves: tests,
-     metrics, configs, drills. ⭐ Without §10, §1 is a manifesto. With §10 each declaration maps
-     to something PROVABLE.
-     📋 Write: per §1 goal — When / Then / How-verify. Numbers from spec §6 NFR VERBATIM (don't
-     round ≤250ms to ≤300ms — that's a critic F6 hit).
-     📌 e.g. «p95 ≤ 500 ms on a block update, verified by a 100 req/s load test». -->
+**QG-1. Zero-footprint default**
+- **When:** a developer has not set the opt-in environment variable.
+- **Then:** no history file is created or written to, and `pomodoro`'s printed output and behavior are identical to a version of the tool with no session-history capability at all (spec AC-02, AC-06).
+- **How verify:** test asserting `pomodoro`'s stdout + exit behavior over a full cycle is unchanged with the env var unset, and that no file appears under the conventional data dir.
 
-Each top-3 goal from §1 expanded into a full scenario:
+**QG-2. Timer-never-breaks reliability**
+- **When:** a developer has opted in and a history-write attempt (mkdir or append) fails for any reason — permissions, a full disk, a missing directory that can't be created.
+- **Then:** 100% of simulated write failures leave the countdown running, unaffected — no crash, hang, or missed tick (spec §6 NFR row 2); the next completed phase independently attempts its own write regardless of whether this one failed (AC-03).
+- **How verify:** unit test in `history`/`io` simulating a failing write, asserting ticks continue uninterrupted.
 
-**QG-1. <quality attribute>**
-- **When:** <trigger condition>
-- **Then:** <expected behaviour with numbers from spec §6 NFR>
-- **How verify:** <test / chaos drill / load test / metric>
-
-**QG-2. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
-
-**QG-3. <quality attribute>**
-- **When:** <trigger>
-- **Then:** <expected>
-- **How verify:** <how>
+**QG-3. History-write added latency**
+- **When:** a developer has opted in and a phase completes.
+- **Then:** the synchronous append adds ≤ 5ms to the existing phase-transition write path, measured as real wall-clock time (spec §6 NFR row 1).
+- **How verify:** integration test timing the write call against a real temp-file write, not a fake double.
 
 ## 11. Risks and technical debt
 
-<!-- 🎯 Why: ⭐ collects EVERYTHING that can break — not only the technical. Without §11 risks get
-     discussed at standups and lost; debt lives only in the head of whoever accepted it.
-     📋 Write: a risk/debt table — severity — mitigation — owner. Accepted debt in its own block.
-     📌 The first risk is often a product risk, not a technical one. That's normal. -->
-
-<!-- Severity literals: Low / Medium / High for regular risks; "Open question" for rows created by
-     a Save-as-OQ resolution during the Socratic walk (see references/socratic.md). -->
-
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
-| <e.g. Worker lag may reach hours during a downstream outage> | Medium | <alert >10 min, on-call playbook, retry backoff> | <DevOps> |
-| <e.g. No event-schema versioning in v1> | Medium | <ADR-NNNN planned for v2, tolerate unknown fields> | <Backend> |
-| Open architectural decision: <decision-headline> | Open question | Resolve before <stage trigger or YYYY-MM-DD>; <inline rationale from the Save-as-OQ> | <owner> |
+| The history file grows indefinitely over long-term use | Low | Accepted non-goal (spec §3: no rotation/size limits); the developer can delete the file themselves at any time | Vitalii |
+| Another process or user could set `POMODORO_HISTORY` without the developer's knowledge | Low | Prevented in effect by AC-06 (only this invocation's own environment, read at its own startup, decides); documented in `README.md` per spec §6.1 Definition-of-Done note | Vitalii |
+| `docs/architecture-map.md` §Constraints still states "the foundation deliberately excludes persistence" — stale the moment this feature ships | Low | This SAD + ADR-0001 are the formal revisit the constraint itself calls for; recommend re-running `survey` after this feature ships to refresh the map | Vitalii |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
-- <e.g. the entity is immutable / unversioned — OK for v1, may need audit versioning in v2>
+- None beyond the non-goals the spec already named and accepted (no read/query path, no rotation, no config-file alternative to the env var — spec §3).
 
 ## 12. Glossary
 
-<!-- 🎯 Why: ⭐ the DOMAIN GLOSSARY that ends arguments a year later («checkpoint — weekly or
-     biweekly? quarter — calendar or fiscal?»).
-     📋 Write: a term / meaning table. Business + technical terms mixed.
-     📌 e.g. «Lesson | a unit inside a course made of blocks (text, video)». -->
-
 | Term | Meaning |
 |---|---|
-| <e.g. domain object A> | <its meaning in this domain> |
-| <e.g. domain object B> | <its meaning> |
-| <e.g. domain invariant name> | <the rule, in plain language> |
+| developer | the person running `pomodoro` in their own terminal — see `CONTEXT.md` |
+| session history | the opt-in, append-only record of completed work/break phases, written to the platform's conventional data directory — see `CONTEXT.md` |
+| completed phase | a work/break phase whose countdown reached zero naturally (including a pause/resume's deferred transition flushing on resume) — see `CONTEXT.md` |
