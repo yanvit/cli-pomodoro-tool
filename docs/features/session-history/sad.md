@@ -31,7 +31,8 @@ target_surfaces: [cli]
 | Vitalii (owner, solo maintainer) | SAD approval | Yes |
 
 <!-- Decision overrides (¶4) — none this pass; the two spec §8 open questions are resolved by
-adopting the spec's own stated defaults (see §4 item 4 and §11), not by override. -->
+adopting the spec's own stated defaults (see §4 item 4), not by override. spec.md §8 itself still
+needs a follow-up human edit to mark both closed — design does not edit spec.md. -->
 
 ## 2. Constraints
 
@@ -87,9 +88,9 @@ C4Context
 **Top strategic choices (the seeds for ADRs):**
 
 1. **Target surface: `cli` (existing, unchanged)** — this feature extends the project's one and only surface; no new container or process. Derived from spec §1 "for whom" (the `developer` role) + the project having exactly one deployable. Blast-radius: 0-of-3 (not irreversible, not multi-module beyond the existing single surface, no legitimate alternative — the entire project *is* this CLI) → inline, no ADR. `target_surfaces: [cli]` written to frontmatter.
-2. **A new `src/history/` module, called directly from `io` on every phase-change** — `io/timer.ts`'s existing `setInterval` callback, right where it already detects `transition.type === "phase-change"` to fire the bell, also calls `history.recordCompletedPhase(phase, round)` synchronously. `core/cycle.ts` and `cli.ts` are both completely untouched — the strongest possible proof that bare `pomodoro` stays byte-for-byte identical (AC-02). This is the one genuine blast-radius decision this pass (irreversible-ish: reversing later means moving files and re-wiring tests; multi-module: touches `io` + a new module + formally revisits ADR-0001/0002's "no persistence" framing per `docs/architecture-map.md` §Constraints; has legitimate alternatives: folding the logic into `io/timer.ts` directly, or having `cli.ts` inject a writer into `io` à la dependency injection) — confirmed with the owner, recorded as **ADR-0001**.
+2. **A new `src/history/` module, called directly from `io` on every phase-change** — `io/timer.ts`'s existing `setInterval` callback, right where it already detects `transition.type === "phase-change"` to fire the bell, also calls `history.recordCompletedPhase(completedPhase, completedRound)` synchronously, using the *completed* phase and round (`transition.from` + the pre-tick round — see §5) rather than the upcoming phase the tick just transitioned into. `core/cycle.ts` and `cli.ts` are both completely untouched — the strongest possible proof that bare `pomodoro` stays byte-for-byte identical (AC-02). This is the one genuine blast-radius decision this pass (irreversible-ish: reversing later means moving files and re-wiring tests; multi-module: touches `io` + a new module + formally revisits ADR-0001/0002's "no persistence" framing per `docs/architecture-map.md` §Constraints; has legitimate alternatives: folding the logic into `io/timer.ts` directly, or having `cli.ts` inject a writer into `io` à la dependency injection) — confirmed with the owner, recorded as **ADR-0001**.
 3. **Write mechanism: synchronous `fs.mkdirSync`(recursive) + `fs.appendFileSync`, each independently wrapped in try/catch** — forced by spec §6 NFR's "0 new runtime dependencies" (rules out a path-resolution library) and AC-01's "the append completes... before the next phase's countdown begins" (rules out an async/fire-and-forget write). No legitimate alternative survives both constraints at once → inline, no ADR.
-4. **Opt-in toggle: `POMODORO_HISTORY=1`, exact-match, read once at process startup** — adopts the default spec.md §8 already proposed ("owner: Vitalii, due: before `sdd:design session-history`" — this design pass is that due point). Unset, empty, or any value other than the literal `1` leaves history off (AC-06). Write-failure handling stays fully silent, no trace, ever — the spec's own stated default for its second §8 open question. Both are convention-level, reversible (an env-var name/semantics change is a one-line `paths.ts`/`record.ts` edit, not a rewrite) → inline, no ADR; recorded as resolved in §11 rather than left open.
+4. **Opt-in toggle: `POMODORO_HISTORY=1`, exact-match, read once at process startup** — adopts the default spec.md §8 already proposed ("owner: Vitalii, due: before `sdd:design session-history`" — this design pass is that due point). Unset, empty, or any value other than the literal `1` leaves history off (AC-06). Write-failure handling stays fully silent, no trace, ever — the spec's own stated default for its second §8 open question. Both are convention-level, reversible (an env-var name/semantics change is a one-line `paths.ts`/`record.ts` edit, not a rewrite) → inline, no ADR. This resolution is the record of it — spec.md §8 still shows both as open on disk and needs a follow-up human edit (or a light `clarify` pass) to mark them closed; §11's Open-Questions row shape is reserved for items still genuinely deferred, which these no longer are.
 
 ## 5. Building block view
 
@@ -103,10 +104,10 @@ src/
 ├── core/
 │   └── cycle.ts         <unchanged — pure state machine, zero changes this feature>
 ├── io/
-│   └── timer.ts          <modified — on transition.type === "phase-change", calls history.recordCompletedPhase() synchronously, alongside the existing bell>
+│   └── timer.ts          <modified — on transition.type === "phase-change", calls history.recordCompletedPhase(transition.from, completedRound) synchronously, alongside the existing bell. completedRound MUST be captured from the pre-tick state.round before the local `state` variable is reassigned to transition.state — nextPhase() (core/cycle.ts) advances round on the short_break→work and long_break→work edges, so by the time the post-tick state is in hand, its round no longer identifies the phase that just completed>
 └── history/
     ├── paths.ts           <new — resolves the OS-conventional per-user data dir; pure function of process.platform + env (XDG_DATA_HOME / HOME / LOCALAPPDATA), paths already settled by docs/roadmap.md>
-    └── record.ts          <new — isHistoryEnabled() reads POMODORO_HISTORY once; recordCompletedPhase(phase, round) ensures the dir exists (mkdirSync, independently every call) and appends one JSON line {phase, round, completedAt}; both the mkdir and the append are independently try/catch'd — any failure is silently absorbed, never thrown (AC-03)>
+    └── record.ts          <new — isHistoryEnabled() reads POMODORO_HISTORY once; recordCompletedPhase(completedPhase, completedRound) ensures the dir exists (mkdirSync, independently every call) and appends one JSON line {phase: completedPhase, round: completedRound, completedAt}; both the mkdir and the append are independently try/catch'd — any failure is silently absorbed, never thrown (AC-03)>
 ```
 
 **C4 Container (L2):**
@@ -145,8 +146,9 @@ sequenceDiagram
     participant io
     participant history
     Developer->>io: phase countdown reaches zero naturally
-    io->>io: tick() returns a phase-change transition
-    io->>history: recordCompletedPhase(phase, round)
+    io->>io: capture the completed phase + its round BEFORE advancing local state
+    io->>io: tick() returns a phase-change transition (transition.from is the completed phase)
+    io->>history: recordCompletedPhase(completedPhase, completedRound)
     history->>history: isHistoryEnabled()? — POMODORO_HISTORY must be exactly "1"
     alt opted in
         history->>history: ensure the OS-conventional data dir exists (mkdirSync, every call)
@@ -196,7 +198,12 @@ ADR files live under `docs/features/session-history/adr/NNNN-<title>.md`.
 - **Then:** 100% of simulated write failures leave the countdown running, unaffected — no crash, hang, or missed tick (spec §6 NFR row 2); the next completed phase independently attempts its own write regardless of whether this one failed (AC-03).
 - **How verify:** unit test in `history`/`io` simulating a failing write, asserting ticks continue uninterrupted.
 
-**QG-3. History-write added latency**
+**QG-3. Cross-platform path correctness**
+- **When:** a developer runs `pomodoro` with history enabled on a given operating system and a phase completes.
+- **Then:** the record is written to that OS's own conventional per-user data location — `$XDG_DATA_HOME` or `~/.local/share/pomodoro-timer/` on Linux, `~/Library/Application Support/pomodoro-timer/` on macOS, `%LOCALAPPDATA%\pomodoro-timer\` on Windows (spec AC-05; paths settled in `docs/roadmap.md`) — with nothing for the developer to configure.
+- **How verify:** unit test on `history/paths.ts` covering all three `process.platform` branches with controlled env vars.
+
+**QG-4. History-write added latency**
 - **When:** a developer has opted in and a phase completes.
 - **Then:** the synchronous append adds ≤ 5ms to the existing phase-transition write path, measured as real wall-clock time (spec §6 NFR row 1).
 - **How verify:** integration test timing the write call against a real temp-file write, not a fake double.
@@ -207,7 +214,7 @@ ADR files live under `docs/features/session-history/adr/NNNN-<title>.md`.
 |---|---|---|---|
 | The history file grows indefinitely over long-term use | Low | Accepted non-goal (spec §3: no rotation/size limits); the developer can delete the file themselves at any time | Vitalii |
 | Another process or user could set `POMODORO_HISTORY` without the developer's knowledge | Low | Prevented in effect by AC-06 (only this invocation's own environment, read at its own startup, decides); documented in `README.md` per spec §6.1 Definition-of-Done note | Vitalii |
-| `docs/architecture-map.md` §Constraints still states "the foundation deliberately excludes persistence" — stale the moment this feature ships | Low | This SAD + ADR-0001 are the formal revisit the constraint itself calls for; recommend re-running `survey` after this feature ships to refresh the map | Vitalii |
+| `docs/architecture-map.md` §Constraints ("the foundation deliberately excludes persistence") and `CLAUDE.md`'s module-structure section (which lists only `cli`/`core`/`io`) both go stale the moment this feature ships | Low | This SAD + ADR-0001 are the formal revisit the constraint calls for; recommend re-running `survey` after this feature ships to refresh `architecture-map.md`, and updating `CLAUDE.md`'s module list to add `history/` | Vitalii |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
 - None beyond the non-goals the spec already named and accepted (no read/query path, no rotation, no config-file alternative to the env var — spec §3).
