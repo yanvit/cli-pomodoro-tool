@@ -2,10 +2,13 @@
 
 A single-purpose CLI Pomodoro timer. Running `pomodoro` walks the classic 25 min work / 5 min
 short break / 15 min long break (every 4th round) cycle, alerting with a terminal bell + printed
-message at each transition, and exits immediately and cleanly on Ctrl+C. No history, no task
-binding, no configurable durations, no background/daemon mode, no OS notifications, no
-pause/resume, no Do-Not-Disturb integration — see `docs/idea-brief.md` §5 for the full list and
-why each was dropped.
+message at each transition, and exits immediately and cleanly on Ctrl+C by default. No task
+binding, no background/daemon mode, no OS notifications, no Do-Not-Disturb integration (the
+last of these is a **permanent** exclusion, not deferred) — see `docs/idea-brief.md` §5 for the
+full v1 list and why each was dropped. **Session history (opt-in), configurable durations, and
+pause/resume were reopened for v2** per `docs/roadmap.md` §Decisions so far — see that file's
+steps 4-6 and the per-feature specs under `docs/features/` — and are in scope, additive, and
+opt-in: bare `pomodoro` with no opt-in stays byte-for-byte identical to the v1 behavior above.
 
 ## Stack
 

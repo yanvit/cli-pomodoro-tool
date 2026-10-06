@@ -23,15 +23,20 @@ The owner, primarily, plus other developers who might informally try the tool (s
 
 No incident or deadline — this is a personal productivity tool the owner wants to build for their own workflow. "It would be nice" is the honest trigger here.
 
-## 5. Out of scope
+## 5. Out of scope (v1)
 
-- **Session history / logging** — no record of completed pomodoros is kept; the tool doesn't answer "how much did I focus today." Deliberately dropped to keep the first version minimal.
+These were the original v1 exclusions. **Session history/logging, configurable durations, and
+pause/resume were reopened for v2** per `docs/roadmap.md` §Decisions so far ("v2 scope
+reopened") — see that file's steps 4-6 — and are no longer out of scope; this section is kept
+as the historical record of the v1 decision, not the current scope boundary.
+
+- **Session history / logging** *(reopened for v2 — see `docs/features/session-history/spec.md`)* — no record of completed pomodoros was kept in v1; the tool didn't answer "how much did I focus today." Deliberately dropped to keep the first version minimal.
 - **Task binding** — pomodoros are not tied to a specific task/label. Follows from dropping history.
-- **Configurable durations** — work/break lengths are fixed to the classic 25/5/15 cycle; no flags, no config file. Chosen for zero-setup simplicity over flexibility.
+- **Configurable durations** *(reopened for v2 — see `docs/roadmap.md` step 5)* — work/break lengths were fixed to the classic 25/5/15 cycle in v1; no flags, no config file. Chosen for zero-setup simplicity over flexibility.
 - **Background/daemon mode** — the timer blocks the terminal tab it runs in; it does not detach or survive terminal close. Chosen for simplicity over being able to use the terminal while it runs.
 - **OS system notifications** — alerts are a terminal bell + printed message only, not a native desktop notification. Chosen to keep the tool dependency-free and portable.
-- **Pause/resume** — Ctrl+C exits the session immediately with no state saved; there is no pause key.
-- **Do-Not-Disturb / attention enforcement** — the tool does not suppress other apps' notifications during a work session; it only tracks time and alerts at transitions.
+- **Pause/resume** *(reopened for v2 — see `docs/features/pause-resume/spec.md`)* — Ctrl+C exits the session immediately with no state saved in v1; there was no pause key.
+- **Do-Not-Disturb / attention enforcement** — **confirmed permanent** via D1 in `docs/roadmap.md` §Decisions so far, not a v1-only deferral. The tool does not suppress other apps' notifications during a work session; it only tracks time and alerts at transitions.
 
 ## 6. Risks
 
