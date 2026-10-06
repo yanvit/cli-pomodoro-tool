@@ -94,6 +94,28 @@
       "files_hint": ["README.md"],
       "file": "docs/features/session-history/tasks/name-history-file-in-readme.md",
       "origin": "review-2026-10-06#4"
+    },
+    {
+      "id": "T10",
+      "title": "Guard against relative-path cwd leak when HOME/XDG_DATA_HOME/LOCALAPPDATA are unset",
+      "layer": "infra",
+      "deps": ["T1", "T2"],
+      "acs": ["AC-05", "AC-03"],
+      "dod": "record.ts no-ops before any fs call when resolveHistoryDir() returns a non-absolute path; paths.test.ts/record.test.ts/record.integration.test.ts pin the fix by mutation",
+      "files_hint": ["src/history/record.ts", "src/history/paths.test.ts", "src/history/record.test.ts", "src/history/record.integration.test.ts"],
+      "file": "docs/features/session-history/tasks/guard-relative-path-cwd-leak.md",
+      "origin": "review-2026-10-06#round2-1"
+    },
+    {
+      "id": "T11",
+      "title": "Close round-2 review doc findings",
+      "layer": "docs",
+      "deps": ["T3"],
+      "acs": [],
+      "dod": "sad.md §11, architecture-map.md, spec.md §8, sad.md §6 Flows 2/3, and data-model.md owner/fixture all corrected with no residual contradictions",
+      "files_hint": ["docs/features/session-history/sad.md", "docs/architecture-map.md", "docs/features/session-history/spec.md", "docs/features/session-history/data-model.md"],
+      "file": "docs/features/session-history/tasks/close-round-2-doc-findings.md",
+      "origin": "review-2026-10-06#round2-2,3,4,6,7"
     }
   ]
 }
