@@ -82,6 +82,16 @@ describe("recordCompletedPhase", () => {
     expect(written.completedAt).toBe(new Date(written.completedAt).toISOString());
   });
 
+  it("no-ops entirely when resolveHistoryDir returns a non-absolute path — never writes relative to cwd", () => {
+    process.env.POMODORO_HISTORY = "1";
+    vi.spyOn(paths, "resolveHistoryDir").mockReturnValue("relative/history/dir");
+
+    recordCompletedPhase("work", 1);
+
+    expect(mkdirSync).not.toHaveBeenCalled();
+    expect(appendFileSync).not.toHaveBeenCalled();
+  });
+
   it("silently absorbs an mkdirSync failure and returns normally", () => {
     process.env.POMODORO_HISTORY = "1";
     mkdirSync.mockImplementation(() => {

@@ -1,5 +1,5 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { Phase } from "../core/cycle.js";
 import { resolveHistoryDir } from "./paths.js";
 
@@ -15,6 +15,9 @@ export function recordCompletedPhase(completedPhase: Phase, completedRound: numb
   }
 
   const dir = resolveHistoryDir();
+  if (!isAbsolute(dir)) {
+    return;
+  }
 
   try {
     mkdirSync(dir, { recursive: true });

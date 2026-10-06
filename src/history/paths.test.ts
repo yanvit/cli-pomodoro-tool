@@ -54,6 +54,21 @@ describe("resolveHistoryDir", () => {
     expect(resolveHistoryDir()).toBe("/home/dev/.local/share/pomodoro-timer");
   });
 
+  it("falls back to a relative path on linux when both XDG_DATA_HOME and HOME are unset", () => {
+    setPlatform("linux");
+    expect(resolveHistoryDir()).toBe(".local/share/pomodoro-timer");
+  });
+
+  it("falls back to a relative path on macOS when HOME is unset", () => {
+    setPlatform("darwin");
+    expect(resolveHistoryDir()).toBe("Library/Application Support/pomodoro-timer");
+  });
+
+  it("falls back to a relative path on Windows when LOCALAPPDATA is unset", () => {
+    setPlatform("win32");
+    expect(resolveHistoryDir()).toBe("pomodoro-timer");
+  });
+
   it("is a pure function with no side effects", () => {
     setPlatform("linux");
     process.env.HOME = "/home/dev";
