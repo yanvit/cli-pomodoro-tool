@@ -48,8 +48,9 @@ sequences for color, cursor control, and the alternate screen buffer.
 
 Set `POMODORO_HISTORY=1` (exact match — unset, empty, or any other value leaves it off) before
 running `pomodoro` to start recording. Each work or break phase that reaches zero naturally
-appends one record — phase, round, and an ISO-8601 UTC timestamp — to an append-only log file at
-the OS's own conventional per-user data location:
+appends one record — phase, round, and an ISO-8601 UTC timestamp — as one JSON object per line
+(JSON Lines) to an append-only file named `history.jsonl`, at the OS's own conventional per-user
+data location:
 
 - **Linux:** `$XDG_DATA_HOME/pomodoro-timer/` (falls back to `~/.local/share/pomodoro-timer/` if
   `XDG_DATA_HOME` is unset)
