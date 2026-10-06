@@ -48,6 +48,27 @@ describe("startTimer — session-history integration", () => {
     expect(fs.readdirSync(tempDir)).toEqual([]);
   });
 
+  it("AC-01: with POMODORO_HISTORY=1, two real phase-changes through startTimer() append exactly the expected lines to the real history file", () => {
+    process.env.POMODORO_HISTORY = "1";
+    process.env.HOME = tempDir;
+    process.env.XDG_DATA_HOME = join(tempDir, "xdg-data");
+    process.env.LOCALAPPDATA = join(tempDir, "local-appdata");
+
+    startTimer();
+
+    vi.advanceTimersByTime(25 * 60 * 1000); // work (round 1) -> short_break (round 1)
+    vi.advanceTimersByTime(5 * 60 * 1000); // short_break (round 1) -> work (round 2)
+
+    const dir = resolveHistoryDir();
+    const content = fs.readFileSync(join(dir, "history.jsonl"), "utf8");
+    const lines = content.trim().split("\n").map((line) => JSON.parse(line));
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({ phase: "work", round: 1 });
+    expect(lines[1]).toMatchObject({ phase: "short_break", round: 1 });
+    expect(() => new Date(lines[0].completedAt).toISOString()).not.toThrow();
+  });
+
   it("AC-03: an unwritable resolved data dir leaves the countdown's ticks running uninterrupted end-to-end", () => {
     process.env.POMODORO_HISTORY = "1";
     process.env.HOME = tempDir;
