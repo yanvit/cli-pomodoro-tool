@@ -1,0 +1,55 @@
+{
+  "slug": "session-history",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Implement OS-conventional history-directory resolution",
+      "layer": "infra",
+      "deps": [],
+      "acs": ["AC-05"],
+      "dod": "paths.test.ts covers all three process.platform branches with controlled env vars and resolveHistoryDir() has no side effects",
+      "files_hint": ["src/history/paths.ts", "src/history/paths.test.ts"],
+      "file": "docs/features/session-history/tasks/implement-history-path-resolution.md"
+    },
+    {
+      "id": "T2",
+      "title": "Implement opt-in gate + isolated append-only writer",
+      "layer": "infra",
+      "deps": ["T1"],
+      "acs": ["AC-01", "AC-03", "AC-06"],
+      "dod": "record.test.ts passes: happy path, opt-out no-op, and both mkdir/append failure-isolation cases, with no exception ever observable to the caller",
+      "files_hint": ["src/history/record.ts", "src/history/record.test.ts"],
+      "file": "docs/features/session-history/tasks/implement-history-writer.md"
+    },
+    {
+      "id": "T3",
+      "title": "Wire completed-phase recording into io/timer.ts",
+      "layer": "wiring",
+      "deps": ["T2"],
+      "acs": ["AC-01", "AC-02", "AC-04"],
+      "dod": "timer.test.ts asserts recordCompletedPhase is called with the correct (phase, round) on a natural phase-change and never on SIGINT, and git diff shows zero changes to cli.ts/core/cycle.ts",
+      "files_hint": ["src/io/timer.ts", "src/io/timer.test.ts"],
+      "file": "docs/features/session-history/tasks/wire-history-into-timer.md"
+    },
+    {
+      "id": "T4",
+      "title": "Integration-test latency and full-cycle default-behavior guarantees",
+      "layer": "tests",
+      "deps": ["T3"],
+      "acs": ["AC-01", "AC-02", "AC-03"],
+      "dod": "three integration tests pass against real temp-file I/O (no fake double): latency <=5ms, zero-footprint default, write-failure isolation",
+      "files_hint": ["src/io/timer.test.ts", "src/history/record.test.ts"],
+      "file": "docs/features/session-history/tasks/integration-test-reliability-and-latency.md"
+    },
+    {
+      "id": "T5",
+      "title": "Document the opt-in variable and history file location in README",
+      "layer": "docs",
+      "deps": ["T3"],
+      "acs": [],
+      "dod": "README names the exact env var, its exact opt-in value, and all three OS paths, sufficient on its own to opt in and find the file",
+      "files_hint": ["README.md"],
+      "file": "docs/features/session-history/tasks/document-opt-in-in-readme.md"
+    }
+  ]
+}
