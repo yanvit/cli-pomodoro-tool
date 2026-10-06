@@ -59,7 +59,10 @@ materializes the skeleton; re-survey after that to add real file:line citations.
 - **Module wiring / registration:** `cli` is the only entry point; it composes `core` + `io` directly (no DI container — the project is too small to need one).
 - **Error handling:** uncaught errors print to `stderr` and exit non-zero; `SIGINT` (Ctrl+C) exits immediately with code `0` (per the idea brief — no confirm, no pause), following standard Node process conventions.
 - **IDs:** not applicable — the tool has no persisted entities.
-- **Persistence / DB access:** none — deliberately out of scope (no history, no config file, per `docs/idea-brief.md` §5).
+- **Persistence / DB access:** none by default. The only exception is the opt-in, append-only
+  session-history writer in `src/history/` (v2, `docs/roadmap.md` step 6) — off unless
+  `POMODORO_HISTORY=1` is set, and even then it's a flat `history.jsonl` file, never a datastore:
+  no query engine, no schema, no migrations directory. See `docs/features/session-history/`.
 - **Migrations:** not applicable — no datastore.
 - **Tests:** Vitest; `core`'s state machine is unit-tested with a fake clock (no real 25-minute waits); `io` gets a thin smoke test only, since it's mostly timers/process I/O.
 - **Inter-module communication:** direct function calls / callbacks in-process — no events bus, no network calls (single local process).
@@ -68,7 +71,7 @@ materializes the skeleton; re-survey after that to add real file:line citations.
 
 | Store | Engine | Accessed via | Notes |
 |---|---|---|---|
-| — | — | — | None. No persistence layer by design (see `docs/idea-brief.md` §5 Out of scope). |
+| — | — | — | No real datastore. The opt-in `src/history/` writer (v2) appends one JSON line per completed phase to a flat `history.jsonl` file under the OS-conventional per-user data directory — see `docs/features/session-history/`. |
 
 ## Frontend / UI foundation
 

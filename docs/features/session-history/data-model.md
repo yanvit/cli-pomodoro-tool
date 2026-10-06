@@ -1,6 +1,6 @@
 ---
 status: Draft
-owner: "Backend Lead"
+owner: "Vitalii"
 reviewers: ["Vitalii"]
 updated_at: "2026-10-06"
 feature_size: "S"
@@ -68,7 +68,7 @@ spec + data-model pass against the then-current access pattern, not a speculativ
 
 ## Test fixtures
 
-- `buildCompletedPhaseRecord(overrides?)` — returns a `{ phase, round, completedAt }` object with
-  safe defaults (`phase: "work"`, `round: 1`, a fixed ISO timestamp), for `history/record.ts` and
-  `io/timer.ts` unit tests. No PII risk — the shape carries no name/email/identity fields to begin
-  with.
+None. The `{ phase, round, completedAt }` shape is three fields, built inline in every test
+(`history/record.test.ts`, `io/timer.test.ts`) — a shared builder would be an abstraction with no
+test it actually simplifies. No PII risk either way — the shape carries no name/email/identity
+fields.

@@ -164,34 +164,34 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant <service>
-    participant <data-store>
-    Note over <service>: precondition — developer has opted in; a phase has just completed naturally
-    <service>->><data-store>: ensure the OS-conventional data directory exists (every call, independently)
+    participant history
+    participant filesystem
+    Note over history: precondition — developer has opted in; a phase has just completed naturally
+    history->>filesystem: ensure the OS-conventional data directory exists (every call, independently)
     alt directory ensure fails
-        Note over <service>: failure silently absorbed — no record attempted, never thrown (AC-03)
+        Note over history: failure silently absorbed — no record attempted, never thrown (AC-03)
     else directory ensure succeeds
-        <service>->><data-store>: append one JSON record for the completed phase
+        history->>filesystem: append one JSON record for the completed phase
         alt append fails
-            Note over <service>: failure silently absorbed — never thrown, never surfaced to the developer (AC-03)
+            Note over history: failure silently absorbed — never thrown, never surfaced to the developer (AC-03)
         else append succeeds
-            Note over <service>,<data-store>: persists completed-phase record {phase, round, completedAt}
+            Note over history,filesystem: persists completed-phase record {phase, round, completedAt}
         end
     end
-    Note over <service>: the countdown continues unaffected either way — the next completed phase independently attempts its own write regardless of this outcome
+    Note over history: the countdown continues unaffected either way — the next completed phase independently attempts its own write regardless of this outcome
 ```
 
 **Critical flow 3: An interrupted phase is never recorded**
 
 ```mermaid
 sequenceDiagram
-    participant <client>
-    participant <service>
-    Note over <service>: precondition — developer has opted in; a phase is mid-countdown
-    <client>->><service>: sends an interrupt (Ctrl+C) or terminate/hang-up signal before the countdown reaches zero
-    <service>->><service>: exits immediately per the project's existing signal handling — no phase-change transition is ever produced for this phase
-    Note over <service>: the history-write step is never reached for this phase — no record exists, regardless of how late the interruption occurs (AC-04)
-    <service>->><client>: process exits, code 0
+    participant Developer
+    participant io
+    Note over io: precondition — developer has opted in; a phase is mid-countdown
+    Developer->>io: sends an interrupt (Ctrl+C) or terminate/hang-up signal before the countdown reaches zero
+    io->>io: exits immediately per the project's existing signal handling — no phase-change transition is ever produced for this phase
+    Note over io: the history-write step is never reached for this phase — no record exists, regardless of how late the interruption occurs (AC-04)
+    io->>Developer: process exits, code 0
 ```
 
 **Coverage check (§4 user stories → flow, §5 ACs → flow/branch/N/A):**
@@ -213,7 +213,7 @@ sequenceDiagram
 
 No §4 user story or §5 AC is left uncovered.
 
-**Flagged for design/data-model:** none — Flow 2/3 introduce no participant beyond `<service>`/`<data-store>`/`<client>`, all already implied by §5's `history`/filesystem boundary; no new ADR-worthy decision surfaced during this pass.
+**Flagged for design/data-model:** none — Flow 2/3 introduce no participant beyond `history`/`filesystem`/`io`/`Developer`, all already implied by §5's `history`/filesystem boundary; no new ADR-worthy decision surfaced during this pass.
 
 ## 7. Deployment view
 
@@ -266,7 +266,7 @@ ADR files live under `docs/features/session-history/adr/NNNN-<title>.md`.
 | Risk / debt | Severity | Mitigation | Owner |
 |---|---|---|---|
 | The history file grows indefinitely over long-term use | Low | Accepted non-goal (spec §3: no rotation/size limits); the developer can delete the file themselves at any time | Vitalii |
-| Another process or user could set `POMODORO_HISTORY` without the developer's knowledge | Low | Prevented in effect by AC-06 (only this invocation's own environment, read at its own startup, decides); documented in `README.md` per spec §6.1 Definition-of-Done note | Vitalii |
+| Another process or user could set `POMODORO_HISTORY` without the developer's knowledge | Low | Prevented in effect by AC-06 (only this invocation's own environment, read fresh on each completed phase, decides); documented in `README.md` per spec §6.1 Definition-of-Done note | Vitalii |
 | `docs/architecture-map.md` §Constraints ("the foundation deliberately excludes persistence") and `CLAUDE.md`'s module-structure section (which lists only `cli`/`core`/`io`) both go stale the moment this feature ships | Low | This SAD + ADR-0001 are the formal revisit the constraint calls for; recommend re-running `survey` after this feature ships to refresh `architecture-map.md`, and updating `CLAUDE.md`'s module list to add `history/` | Vitalii |
 
 **Accepted debt (acceptable in v1, plan to fix later):**
