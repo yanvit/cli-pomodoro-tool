@@ -47,6 +47,16 @@ describe("startTimer smoke test", () => {
     expect(recordCompletedPhaseMock).toHaveBeenCalledWith("work", 1);
   });
 
+  it("calls recordCompletedPhase with the pre-tick round on the short_break→work edge, where pre/post round differ", () => {
+    startTimer();
+
+    vi.advanceTimersByTime(25 * 60 * 1000); // work (round 1) -> short_break (round 1)
+    vi.advanceTimersByTime(5 * 60 * 1000); // short_break (round 1) -> work (round 2)
+
+    expect(recordCompletedPhaseMock).toHaveBeenCalledTimes(2);
+    expect(recordCompletedPhaseMock).toHaveBeenNthCalledWith(2, "short_break", 1);
+  });
+
   it("never calls recordCompletedPhase when SIGINT fires mid-countdown", () => {
     startTimer();
 

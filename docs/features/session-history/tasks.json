@@ -50,6 +50,50 @@
       "dod": "README names the exact env var, its exact opt-in value, and all three OS paths, sufficient on its own to opt in and find the file",
       "files_hint": ["README.md"],
       "file": "docs/features/session-history/tasks/document-opt-in-in-readme.md"
+    },
+    {
+      "id": "T6",
+      "title": "Strengthen AC-01 round-capture test to discriminate pre/post-tick round",
+      "layer": "tests",
+      "deps": ["T3"],
+      "acs": ["AC-01"],
+      "dod": "timer.test.ts asserts recordCompletedPhase is called with (\"short_break\", 1) on the short_break→work edge, where pre-tick and post-tick round differ — a test that fails if the capture moves after the tick",
+      "files_hint": ["src/io/timer.test.ts"],
+      "file": "docs/features/session-history/tasks/strengthen-round-capture-test.md",
+      "origin": "review-2026-10-06#1"
+    },
+    {
+      "id": "T7",
+      "title": "Add real-filesystem integration test through the timer call site",
+      "layer": "tests",
+      "deps": ["T3"],
+      "acs": ["AC-01"],
+      "dod": "a timer.integration.test.ts case opts in, runs startTimer() through two real phase-changes against a real temp dir, and asserts the real history.jsonl file contains exactly the expected {phase, round} lines",
+      "files_hint": ["src/io/timer.integration.test.ts"],
+      "file": "docs/features/session-history/tasks/add-timer-integration-write-test.md",
+      "origin": "review-2026-10-06#2"
+    },
+    {
+      "id": "T8",
+      "title": "Update CLAUDE.md to document the history module and reflect shipped persistence",
+      "layer": "docs",
+      "deps": ["T3"],
+      "acs": [],
+      "dod": "CLAUDE.md module structure lists src/history/, the Persistence convention line reflects the opt-in append-only writer, and a routing rule points history/persistence logic at src/history/",
+      "files_hint": ["CLAUDE.md"],
+      "file": "docs/features/session-history/tasks/update-claude-md-persistence.md",
+      "origin": "review-2026-10-06#3"
+    },
+    {
+      "id": "T9",
+      "title": "Name the history file and its format in README",
+      "layer": "docs",
+      "deps": ["T5"],
+      "acs": [],
+      "dod": "README's Session history section names history.jsonl and its one-JSON-object-per-line format, sufficient on its own to find and read the file",
+      "files_hint": ["README.md"],
+      "file": "docs/features/session-history/tasks/name-history-file-in-readme.md",
+      "origin": "review-2026-10-06#4"
     }
   ]
 }
